@@ -10,6 +10,10 @@
 #include <ArduinoJson.h>
 #include <functional>
 #include <memory>
+#ifdef ESP32
+    #include <Update.h>
+#endif
+
 using namespace std;
 #include "espInterface.h"
 #include "painlessTCP.h"
@@ -34,7 +38,7 @@ enum meshPackageType {
     TIME_SYNC = 4,
     NODE_SYNC_REQUEST = 5,
     NODE_SYNC_REPLY = 6,
-    CONTROL = 7,  //deprecated
+    OTA = 7,  //OTA packet
     BROADCAST = 8,  //application data for everyone
     SINGLE = 9   //application data for a single node
 };
@@ -163,6 +167,9 @@ protected:
     void                apInit(void);
 
     void                tcpServerInit();
+
+    // in painlessMeshOTA.cpp
+    void                handleOTA(std::shared_ptr<MeshConnection> conn, JsonObject& root);
 
     // callbacks
     // in painlessMeshConnection.cpp

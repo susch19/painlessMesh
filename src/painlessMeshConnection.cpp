@@ -581,9 +581,12 @@ void ICACHE_FLASH_ATTR MeshConnection::handleMessage(String &buffer, uint32_t re
 
     case SINGLE:
     case TIME_DELAY:
+    case OTA:
         if ((uint32_t)root["dest"] == staticThis->getNodeId()) {  // msg for us!
             if (t_message == TIME_DELAY) {
                 staticThis->handleTimeDelay(rConn, root, receivedAt);
+            } else if(t_message == OTA) {
+                staticThis->handleOTA(rConn, root);
             } else {
                 if (staticThis->receivedCallback)
                     staticThis->receivedCallback((uint32_t)root["from"], msg);
