@@ -157,6 +157,10 @@ void ICACHE_FLASH_ATTR painlessMesh::handleOTA(std::shared_ptr<MeshConnection> c
         uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
 #endif
         Serial.printf("Sketch size %d\n", maxSketchSpace);
+		if(Update.isRunning())
+		{
+			Update.end(false);
+		}
         if(!Update.begin(maxSketchSpace)){ //start with max available size
             staticThis->debugMsg(ERROR, "handleOTA(): OTA start failed!\n");
             Update.printError(Serial);
