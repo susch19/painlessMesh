@@ -16,6 +16,22 @@ ICACHE_FLASH_ATTR painlessMesh::painlessMesh() {}
 
 // general functions
 //***********************************************************************
+void ICACHE_FLASH_ATTR painlessMesh::init(painlessCfg_t cfg) {
+
+    if(cfg.baseScheduler != nullptr)
+    {
+        cfg.baseScheduler->setHighPriorityScheduler(&this->_scheduler);
+        isExternalScheduler = true;        
+    }
+    
+    if(cfg.debug != 0)
+    {
+        setDebugMsgTypes(cfg.debug);
+    }
+
+    init(cfg.ssid, cfg.password, cfg.port, cfg.connectMode, cfg.authmode, cfg.channel, cfg.phymode, cfg.maxtpw, cfg.hidden, cfg.maxconn);
+}
+
 void ICACHE_FLASH_ATTR painlessMesh::init(String ssid, String password, Scheduler *baseScheduler, uint16_t port, WiFiMode_t connectMode, wifi_auth_mode_t authmode, uint8_t channel, uint8_t phymode, uint8_t maxtpw, uint8_t hidden, uint8_t maxconn) {
 
     baseScheduler->setHighPriorityScheduler(&this->_scheduler);

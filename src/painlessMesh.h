@@ -63,6 +63,21 @@ typedef enum
 #define MAX_CONN 4
 #endif // DEBUG
 
+typedef struct {
+    String ssid;
+    String password;
+    uint8_t channel = 1;
+    uint8_t phymode = WIFI_PROTOCOL_11G;
+    uint8_t maxtpw = 82;
+    uint8_t hidden = 0;
+    uint16_t port = 5555;
+    uint8_t maxconn = MAX_CONN;
+    WiFiMode_t connectMode = WIFI_AP_STA;
+    wifi_auth_mode_t authmode = WIFI_AUTH_WPA2_PSK;
+    uint16_t debug = 0;
+    Scheduler *baseScheduler;
+} painlessCfg_t;
+
 using ConnectionList = std::list<std::shared_ptr<MeshConnection>>;
 
 typedef std::function<void(uint32_t nodeId)> newConnectionCallback_t;
@@ -85,6 +100,7 @@ public:
 	 					painlessMesh();
     void                init(String ssid, String password, Scheduler *baseScheduler, uint16_t port = 5555, WiFiMode_t connectMode = WIFI_AP_STA, wifi_auth_mode_t authmode = WIFI_AUTH_WPA2_PSK, uint8_t channel = 1, uint8_t phymode = WIFI_PROTOCOL_11G, uint8_t maxtpw = 82, uint8_t hidden = 0, uint8_t maxconn = MAX_CONN);
     void                init(String ssid, String password, uint16_t port = 5555, WiFiMode_t connectMode = WIFI_AP_STA, wifi_auth_mode_t authmode = WIFI_AUTH_WPA2_PSK, uint8_t channel = 1, uint8_t phymode = WIFI_PROTOCOL_11G, uint8_t maxtpw = 82, uint8_t hidden = 0, uint8_t maxconn = MAX_CONN);
+    void                init(painlessCfg_t cfg);
     /**
      * Disconnect and stop this node
      */

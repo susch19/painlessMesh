@@ -47,11 +47,17 @@ void setup() {
 
   pinMode(LED, OUTPUT);
 
-  //mesh.setDebugMsgTypes( ERROR | MESH_STATUS | CONNECTION | SYNC | COMMUNICATION | GENERAL | MSG_TYPES | REMOTE ); // all types on
-  //mesh.setDebugMsgTypes(ERROR | DEBUG | CONNECTION | COMMUNICATION);  // set before init() so that you can see startup messages
-  mesh.setDebugMsgTypes(ERROR | DEBUG | CONNECTION);  // set before init() so that you can see startup messages
+  painlessCfg_t meshCfg;
+  meshCfg.ssid = MESH_SSID;
+  meshCfg.password = MESH_PASSWORD;
+  meshCfg.port = MESH_PORT;
+  meshCfg.baseScheduler = &userScheduler;
+  meshCfg.debug = ERROR | DEBUG | CONNECTION;
 
-  mesh.init(MESH_SSID, MESH_PASSWORD, &userScheduler, MESH_PORT);
+  //meshCfg.debug = ERROR | MESH_STATUS | CONNECTION | SYNC | COMMUNICATION | GENERAL | MSG_TYPES | REMOTE; // all types on
+  //meshCfg.debug = ERROR | DEBUG | CONNECTION | COMMUNICATION;  // set before init() so that you can see startup messages
+
+  mesh.init(meshCfg);
   mesh.onReceive(&receivedCallback);
   mesh.onNewConnection(&newConnectionCallback);
   mesh.onChangedConnections(&changedConnectionCallback);
