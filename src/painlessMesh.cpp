@@ -15,7 +15,7 @@ ICACHE_FLASH_ATTR painlessMesh::painlessMesh() {}
 
 // general functions
 //***********************************************************************
-void ICACHE_FLASH_ATTR painlessMesh::init(painlessCfg_t cfg) {
+void ICACHE_FLASH_ATTR painlessMesh::init(painlessConfig_t cfg) {
 
     if(cfg.baseScheduler != nullptr)
     {
@@ -28,7 +28,7 @@ void ICACHE_FLASH_ATTR painlessMesh::init(painlessCfg_t cfg) {
         setDebugMsgTypes(cfg.debug);
     }
 
-    init(cfg.ssid, cfg.password, cfg.port, cfg.connectMode, cfg.authmode, cfg.channel, cfg.phymode, cfg.maxtpw, cfg.hidden, cfg.maxconn);
+    init(cfg.ssid, cfg.password, cfg.port, cfg.connectMode, cfg.channel, cfg.hidden, cfg.maxconn);
 }
 
 void ICACHE_FLASH_ATTR painlessMesh::init(String ssid, String password, Scheduler *baseScheduler, uint16_t port, WiFiMode_t connectMode, uint8_t channel, uint8_t hidden, uint8_t maxconn) {
