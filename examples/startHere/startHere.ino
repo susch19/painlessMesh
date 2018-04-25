@@ -47,7 +47,7 @@ void setup() {
 
   pinMode(LED, OUTPUT);
 
-  painlessCfg_t meshCfg;
+  painlessConfig_t meshCfg;
   meshCfg.ssid = MESH_SSID;
   meshCfg.password = MESH_PASSWORD;
   meshCfg.port = MESH_PORT;
