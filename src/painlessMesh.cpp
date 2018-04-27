@@ -29,6 +29,11 @@ void ICACHE_FLASH_ATTR painlessMesh::init(painlessConfig_t cfg) {
     }
 
     init(cfg.ssid, cfg.password, cfg.port, cfg.connectMode, cfg.channel, cfg.hidden, cfg.maxconn);
+
+    if(cfg.stationManual != NULL)
+    {
+        stationManual(cfg.stationManual->ssid, cfg.stationManual->password, cfg.stationManual->port, cfg.stationManual->remote_ip);
+    }
 }
 
 void ICACHE_FLASH_ATTR painlessMesh::init(String ssid, String password, Scheduler *baseScheduler, uint16_t port, WiFiMode_t connectMode, uint8_t channel, uint8_t hidden, uint8_t maxconn) {

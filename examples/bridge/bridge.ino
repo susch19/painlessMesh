@@ -22,13 +22,24 @@ painlessMesh  mesh;
 
 void setup() {
   Serial.begin(115200);
-  mesh.setDebugMsgTypes( ERROR | STARTUP | CONNECTION );  // set before init() so that you can see startup messages
-
+    
+  stationConfig_t stationCfg;
+  stationCfg.ssid = STATION_SSID;
+  stationCfg.password = STATION_PASSWORD;
+  stationCfg.port = STATION_PORT;
+  stationCfg.remote_ip = station_ip;
+ 
+  painlessConfig_t meshCfg;
+  meshCfg.ssid = MESH_PREFIX;
+  meshCfg.password = MESH_PASSWORD;
+  meshCfg.port = MESH_PORT;
+  meshCfg.channel = 6;
+  meshCfg.debug = ERROR | STARTUP | CONNECTION;
+  meshCfg.stationManual = &stationCfg;
 
   // Channel set to 6. Make sure to use the same channel for your mesh and for you other
   // network (STATION_SSID)
-  mesh.init( MESH_PREFIX, MESH_PASSWORD, MESH_PORT, WIFI_AP_STA, 6 );
-  mesh.stationManual(STATION_SSID, STATION_PASSWORD, STATION_PORT, station_ip);
+  mesh.init( meshCfg );
   mesh.onReceive(&receivedCallback);
 }
 

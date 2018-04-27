@@ -67,6 +67,13 @@ typedef enum
 typedef struct {
     String ssid;
     String password;
+    uint16_t port;
+    IPAddress remote_ip;
+} stationConfig_t;
+
+typedef struct {
+    String ssid;
+    String password;
     uint8_t channel = 1;
     uint8_t hidden = 0;
     uint16_t port = 5555;
@@ -74,6 +81,7 @@ typedef struct {
     WiFiMode_t connectMode = WIFI_AP_STA;
     uint16_t debug = 0;
     Scheduler *baseScheduler;
+    stationConfig_t *stationManual = NULL;
 } painlessConfig_t;
 
 using ConnectionList = std::list<std::shared_ptr<MeshConnection>>;

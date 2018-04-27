@@ -18,12 +18,16 @@ extern painlessMesh* staticThis;
 void ICACHE_FLASH_ATTR painlessMesh::stationManual(
         String ssid, String password, uint16_t port,
         IPAddress remote_ip) {
-    // Set station config
-    stationScan.manualIP = remote_ip;
+    // prevent double initialisation
+    if(!stationScan.manual)
+    {
+        // Set station config
+        stationScan.manualIP = remote_ip;
 
-    // Start scan
-    stationScan.init(this, ssid, password, port);
-    stationScan.manual = true;
+        // Start scan
+        stationScan.init(this, ssid, password, port);
+        stationScan.manual = true;
+    }
 }
 
 bool ICACHE_FLASH_ATTR painlessMesh::setHostname(const char * hostname){
