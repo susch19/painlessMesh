@@ -96,16 +96,14 @@ uint32_t ICACHE_FLASH_ATTR painlessMesh::encodeNodeId(const uint8_t *hwaddr) {
   return value;
 }
 
-void ICACHE_FLASH_ATTR StationScan::init(painlessMesh *pMesh, String &pssid, 
-        String &ppassword, uint16_t pPort) {
-    ssid = pssid;
-    password = ppassword;
-    mesh = pMesh;
-    port = pPort;
+void ICACHE_FLASH_ATTR StationScan::init(painlessMesh *pMesh, String pssid,
+                                         String ppassword, uint16_t pPort) {
+  ssid = pssid;
+  password = ppassword;
+  mesh = pMesh;
+  port = pPort;
 
-    task.set(SCAN_INTERVAL, TASK_FOREVER, [this](){
-        stationScan();
-    });
+  task.set(SCAN_INTERVAL, TASK_FOREVER, [this]() { stationScan(); });
 }
 
 // Starts scan for APs whose name is Mesh SSID
@@ -137,7 +135,7 @@ void ICACHE_FLASH_ATTR StationScan::scanComplete() {
   for (auto i = 0; i < num; ++i) {
     WiFi_AP_Record_t record;
     record.ssid = WiFi.SSID(i);
-    if (record.ssid != ssid) {
+    if (!record.ssid.equals(this->ssid)) {
       if (record.ssid.equals("") && mesh->_meshHidden) {
         // Hidden mesh
         record.ssid = ssid;

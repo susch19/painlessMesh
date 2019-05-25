@@ -28,8 +28,7 @@ class StationScan {
     Task task; // Station scanning for connections
 
     StationScan() {}
-    void init(painlessMesh *pMesh, String &ssid, String &password,
-            uint16_t port);
+    void init(painlessMesh *pMesh, String ssid, String password, uint16_t port);
     void stationScan();
     void scanComplete();
     void filterAPs();

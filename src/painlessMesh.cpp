@@ -61,8 +61,11 @@ void ICACHE_FLASH_ATTR painlessMesh::init(String ssid, String password, uint16_t
         apInit();       // setup AP
     }
     if (connectMode & WIFI_STA) {
-        stationScan.init(this, ssid, password, port);
-        _scheduler.addTask(stationScan.task);
+      Log(DEBUG, "Setting up stations scan with: %s\n", ssid.c_str());
+      stationScan.init(this, ssid, password, port);
+      _scheduler.addTask(stationScan.task);
+    } else {
+      Log(DEBUG, "Station scan disabled\n");
     }
 
 #ifdef ESP32
