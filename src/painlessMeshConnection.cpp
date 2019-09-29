@@ -255,6 +255,7 @@ bool ICACHE_FLASH_ATTR MeshConnection::writeNext() {
     auto written = client->write(data_ptr, len, 1);
     if (written == len) {
       Log(COMMUNICATION, "writeNext(): Package sent\n");
+      // Log(COMMUNICATION, "writeNext(): Package sent %s\n", data_ptr);
       client->send();  // TODO only do this for priority messages
       sentBuffer.freeRead();
       sentBufferTask.forceNextIteration();
