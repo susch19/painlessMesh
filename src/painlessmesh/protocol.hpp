@@ -83,7 +83,7 @@ class Single : public PackageInterface {
   }
 
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(4) + round(1.1 * msg.length());
+    return JSON_OBJECT_SIZE(4) + ceil(1.1 * msg.length());
   }
 };
 
@@ -103,7 +103,7 @@ class Broadcast : public Single {
   }
 
   size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(4) + round(1.1 * msg.length());
+    return JSON_OBJECT_SIZE(4) + ceil(1.1 * msg.length());
   }
 };
 

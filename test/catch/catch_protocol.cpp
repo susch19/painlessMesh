@@ -553,4 +553,28 @@ SCENARIO("Package constructors work as expected", "[protocol]") {
       REQUIRE(pkg.type == BROADCAST);
     }
   }
+  GIVEN("A Single package with four letter message") {
+    std::string str = "xxxx";
+    auto pkg = Single(10, 0, str);
+    THEN("Message will be set correctly") { REQUIRE(pkg.msg == "xxxx"); }
+    THEN("Message can be encouded correctly") {
+      auto var = Variant(pkg);
+      auto var2 = Variant(pkg);
+      auto var3 = var;
+      auto pkg1 = var.to<Single>();
+      auto pkg2 = var2.to<Single>();
+      auto pkg3 = var3.to<Single>();
+      REQUIRE(pkg1.msg == "xxxx");
+      REQUIRE(pkg2.msg == "xxxx");
+      REQUIRE(pkg3.msg == "xxxx");
+
+      std::string s;
+      var3.printTo(s);
+      std::cout << s << std::endl;
+
+      auto var4 = Variant(s);
+      auto pkg4 = var4.to<Single>();
+      REQUIRE(pkg4.msg == "xxxx");
+    }
+  }
 }
