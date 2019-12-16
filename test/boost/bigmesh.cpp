@@ -41,8 +41,7 @@ class MeshTest : public PMesh {
     this->bmStorage.id = this->bmStorage.originalID;
     this->bmStorage.source = this->nodeId;
 
-    this->addTask(100, TASK_FOREVER, [this]() {
-      // 10*TASK_SECOND, TASK_FOREVER, [this]() {
+    idTask = this->addTask(10 * TASK_SECOND, TASK_FOREVER, [this]() {
       auto pkg = bigmesh::MeshIDPackage(33);
       pkg.id = this->bmStorage.id;
       pkg.weight = this->bmStorage.weight;
@@ -53,9 +52,10 @@ class MeshTest : public PMesh {
 
     this->onPackage(33, [this](painlessmesh::protocol::Variant var) {
       auto pkg = var.to<bigmesh::MeshIDPackage>();
-      if (pkg.from == this->bmStorage.source) {
-        // Did something change since last time?
-        if (pkg.weight >= this->nodeId) {
+      if (pkg.from == this->bmStorage.source &&
+          pkg.weight != this->bmStorage.weight) {
+        // Something changed upstream
+        if (pkg.weight > this->nodeId) {
           this->bmStorage.id = pkg.id;
           this->bmStorage.weight = pkg.weight;
         } else {
@@ -65,17 +65,31 @@ class MeshTest : public PMesh {
           this->bmStorage.source = this->nodeId;
           this->bmStorage.weight = this->nodeId;
         }
+        this->idTask->forceNextIteration();
       } else {
         if (pkg.weight > this->bmStorage.weight) {
           this->bmStorage.id = pkg.id;
           this->bmStorage.source = pkg.from;
           this->bmStorage.weight = pkg.weight;
+          this->idTask->forceNextIteration();
         }
       }
       return false;
     });
 
-    // Add handler for new connections and broken connections
+    // Add handler for new connections
+    this->onNewConnection(
+        [this](auto nodeId) { this->idTask->forceNextIteration(); });
+
+    // Handler for broken connections
+    this->onDroppedConnection([this](auto nodeId) {
+      if (nodeId == this->bmStorage.source) {
+        this->bmStorage.id = this->bmStorage.originalID;
+        this->bmStorage.source = this->nodeId;
+        this->bmStorage.weight = this->nodeId;
+        this->idTask->forceNextIteration();
+      }
+    });
   }
 
   void connect(MeshTest &mesh) {
@@ -86,6 +100,7 @@ class MeshTest : public PMesh {
   }
 
   bigmesh::BigMeshStorage bmStorage;
+  std::shared_ptr<Task> idTask;
   std::shared_ptr<AsyncServer> pServer;
   boost::asio::io_service &io_service;
 };
