@@ -122,7 +122,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * Add this to your loop() function. This routine runs various maintenance
    * tasks.
    */
-  void update(void) {
+  void update() {
     if (semaphoreTake()) {
       mScheduler->execute();
       semaphoreGive();

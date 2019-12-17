@@ -1,8 +1,7 @@
-#ifndef _BIGMESH_HPP_
-#define _BIGMESH_HPP_
+#ifndef _BIGMESH_MESHID_HPP_
+#define _BIGMESH_MESHID_HPP_
 
 namespace bigmesh {
-
 struct MeshID {
   std::map<uint32_t, int> sizes;
   int originalID;

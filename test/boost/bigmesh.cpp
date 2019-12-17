@@ -15,9 +15,10 @@ ESPClass ESP;
 
 #include "painlessmesh/mesh.hpp"
 
-#include "bigmesh/bigmesh.hpp"
+#include "bigmesh/mesh.hpp"
+#include "bigmesh/meshid.hpp"
 
-using PMesh = painlessmesh::Mesh<MeshConnection>;
+using PMesh = bigmesh::Mesh<MeshConnection>;
 
 using namespace painlessmesh;
 painlessmesh::logger::LogClass Log;
@@ -28,20 +29,20 @@ class MeshTest : public PMesh {
       : io_service(io) {
     this->nodeId = id;
     this->init(scheduler, this->nodeId);
-    timeOffset = runif(0, 1e09);
+
     pServer = std::make_shared<AsyncServer>(io_service, this->nodeId);
     painlessmesh::tcp::initServer<MeshConnection, PMesh>(*pServer, (*this));
 
-    this->bmStorage.originalID = runif(1, 254);
+    this->meshId.originalID = runif(1, 254);
     if (this->isRoot()) {
-      this->bmStorage.originalID = 255;
+      this->meshId.originalID = 255;
     }
-    this->bmStorage.id = this->bmStorage.originalID;
-    this->bmStorage.source = this->nodeId;
+    this->meshId.id = this->meshId.originalID;
+    this->meshId.source = this->nodeId;
 
     idTask = this->addTask(10 * TASK_SECOND, TASK_FOREVER, [this]() {
       auto pkg = bigmesh::MeshIDPackage(33);
-      pkg.id = this->bmStorage.id;
+      pkg.id = this->meshId.id;
       pkg.from = this->nodeId;
       this->sendPackage(&pkg);
     });
@@ -58,11 +59,11 @@ class MeshTest : public PMesh {
         connection->newConnection = false;
       }
 
-      if (this->bmStorage.id != pkg.id) {
-        if (connection->station && (this->bmStorage.id != pkg.id ||
-                                    this->bmStorage.source != pkg.from)) {
-          this->bmStorage.id = pkg.id;
-          this->bmStorage.source = pkg.from;
+      if (this->meshId.id != pkg.id) {
+        if (connection->station &&
+            (this->meshId.id != pkg.id || this->meshId.source != pkg.from)) {
+          this->meshId.id = pkg.id;
+          this->meshId.source = pkg.from;
           this->idTask->forceNextIteration();
         }
         this->idTask->forceNextIteration();
@@ -78,9 +79,9 @@ class MeshTest : public PMesh {
 
     // Handler for broken connections
     this->onDroppedConnection([this](auto nodeId) {
-      if (nodeId == this->bmStorage.source) {
-        this->bmStorage.id = this->bmStorage.originalID;
-        this->bmStorage.source = this->nodeId;
+      if (nodeId == this->meshId.source) {
+        this->meshId.id = this->meshId.originalID;
+        this->meshId.source = this->nodeId;
         this->idTask->forceNextIteration();
       }
     });
@@ -93,7 +94,7 @@ class MeshTest : public PMesh {
         mesh.nodeId, (*this));
   }
 
-  bigmesh::BigMeshStorage bmStorage;
+  bigmesh::MeshID meshId;
   std::shared_ptr<Task> idTask;
   std::shared_ptr<AsyncServer> pServer;
   boost::asio::io_service &io_service;
@@ -109,9 +110,9 @@ class Nodes {
       nodes.push_back(m);
     }
   }
-  void update() {
+  void execute() {
     for (auto &&m : nodes) {
-      m->update();
+      m->execute();
       io_service.poll();
     }
   }
@@ -152,6 +153,10 @@ class Nodes {
  *
  * Time sync will need to be changed to accept the time from the source, not
  * anyone else
+ *
+ * Stability could measure how stable the mesh id is
+ *
+ * How to deal with time outs?
  */
 
 SCENARIO("The MeshTest class works correctly") {
@@ -165,12 +170,12 @@ SCENARIO("The MeshTest class works correctly") {
   mesh2.connect(mesh1);
 
   for (auto i = 0; i < 100000; ++i) {
-    mesh1.update();
-    mesh2.update();
+    mesh1.execute();
+    mesh2.execute();
     io_service.poll();
   }
 
-  REQUIRE(mesh1.bmStorage.id == mesh2.bmStorage.id);
+  REQUIRE(mesh1.meshId.id == mesh2.meshId.id);
 }
 
 SCENARIO("Mesh ID is correctly passed around") {
@@ -183,26 +188,26 @@ SCENARIO("Mesh ID is correctly passed around") {
   Nodes n(&scheduler, 12, io_service);
 
   for (auto i = 0; i < 1000; ++i) {
-    n.update();
+    n.execute();
     delay(10);
   }
 
-  auto id = n.nodes[11]->bmStorage.id;
+  auto id = n.nodes[11]->meshId.id;
   for (auto &&node : n.nodes) {
     if (node->subs.size() > 0) REQUIRE((*node->subs.begin())->nodeId != 0);
-    REQUIRE(node->bmStorage.id == id);
+    REQUIRE(node->meshId.id == id);
   }
 
   // Disconnect
   auto nid = runif(0, 11);
   (*n.nodes[nid]->subs.begin())->close();
   for (auto i = 0; i < 1000; ++i) {
-    n.update();
+    n.execute();
     delay(10);
   }
   std::map<uint32_t, int> m;
   for (auto &&node : n.nodes) {
-    auto i = node->bmStorage.id;
+    auto i = node->meshId.id;
     if (m.count(i) == 0) m[i] = 0;
     ++m[i];
   }

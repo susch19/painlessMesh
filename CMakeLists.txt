@@ -25,6 +25,6 @@ add_executable(catch_tcp_integration test/boost/tcp_integration.cpp test/catch/f
 target_include_directories(catch_tcp_integration PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
 TARGET_LINK_LIBRARIES(catch_tcp_integration ${Boost_LIBRARIES})
 
-add_executable(catch_bigmesh test/boost/bigmesh.cpp test/catch/fake_serial.cpp src/painlessMeshConnection.cpp src/scheduler.cpp)
+add_executable(catch_bigmesh test/boost/bigmesh.cpp test/catch/fake_serial.cpp src/scheduler.cpp)
 target_include_directories(catch_bigmesh PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)
 TARGET_LINK_LIBRARIES(catch_bigmesh ${Boost_LIBRARIES})
