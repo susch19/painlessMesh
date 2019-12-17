@@ -137,10 +137,29 @@ class PackageHandler : public layout::Layout<T> {
     return false;
   }
 
+  /**
+   * Add a callback handler for certain package types
+   *
+   * @param type The message type
+   * @param function The callback function. The function should accept a variant (json variant that can be converted to a package. A shared ptr to the connection this package arrived from. The time this package arrived on
+   */
+  void onPackage(
+      int type,
+      std::function<bool(protocol::Variant, std::shared_ptr<T>, uint32_t)>
+          function) {
+    this->callbackList.onPackage(type, function);
+  }
+
+  /**
+   * Add a callback handler for certain package types
+   *
+   * @param type The message type
+   * @param function The callback function. The function should accept a variant (json variant that can be converted to a package.
+   */
   void onPackage(int type, std::function<bool(protocol::Variant)> function) {
     auto func = [function](protocol::Variant var, std::shared_ptr<T>,
                            uint32_t) { return function(var); };
-    this->callbackList.onPackage(type, func);
+    this->onPackage(type, func);
   }
 
   /**

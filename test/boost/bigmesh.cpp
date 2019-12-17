@@ -50,34 +50,41 @@ class MeshTest : public PMesh {
       this->sendPackage(&pkg);
     });
 
-    this->onPackage(33, [this](painlessmesh::protocol::Variant var) {
+    this->onPackage(33, [this](painlessmesh::protocol::Variant var,
+                               std::shared_ptr<MeshConnection> connection,
+                               uint32_t arrivaltime) {
       auto pkg = var.to<bigmesh::MeshIDPackage>();
-      if (pkg.from == this->bmStorage.source &&
-          pkg.weight != this->bmStorage.weight) {
-        // Something changed upstream
-        if (pkg.weight > this->nodeId) {
-          this->bmStorage.id = pkg.id;
-          this->bmStorage.weight = pkg.weight;
-        } else {
-          // They lost their id rights, so now I am the boss again
-          // Until I hear differently
-          this->bmStorage.id = this->bmStorage.originalID;
-          this->bmStorage.source = this->nodeId;
-          this->bmStorage.weight = this->nodeId;
-        }
-        this->idTask->forceNextIteration();
-      } else {
-        if (pkg.weight > this->bmStorage.weight) {
+
+      // If node id of the connection was unset then set it now
+      if (connection->nodeId == 0) connection->nodeId = pkg.from;
+
+      // Did anything change?
+      if (pkg.weight != this->bmStorage.weight) {
+        if (pkg.from == this->bmStorage.source) {
+          // Something changed upstream
+          if (pkg.weight > this->nodeId) {
+            this->bmStorage.id = pkg.id;
+            this->bmStorage.weight = pkg.weight;
+          } else {
+            // They lost their id rights, so now I am the boss again
+            // Until I hear differently
+            this->bmStorage.id = this->bmStorage.originalID;
+            this->bmStorage.source = this->nodeId;
+            this->bmStorage.weight = this->nodeId;
+          }
+        } else if (pkg.weight > this->bmStorage.weight) {
           this->bmStorage.id = pkg.id;
           this->bmStorage.source = pkg.from;
           this->bmStorage.weight = pkg.weight;
-          this->idTask->forceNextIteration();
         }
+        this->idTask->forceNextIteration();
       }
       return false;
     });
 
     // Add handler for new connections
+    // TODO: this is only called after first sync message is accepted
+    // won't be needed once we remove sync messages
     this->onNewConnection(
         [this](auto nodeId) { this->idTask->forceNextIteration(); });
 
@@ -137,6 +144,29 @@ class Nodes {
   boost::asio::io_service &io_service;
 };
 
+/** For routing we need a broadcast id, whenever a higher id is received,
+ * set current id to that.
+ * Ignore any lower values.. Note that best to use uint, but with 10 > max,
+ * to adjust for max+1 == 0
+ * Probably also need to use 0 as an invalid initial ID, so we dont start by
+ * disregarding all broadcasts
+ *
+ * We need RouteRequest broadcast, which when forwarded will at last step to
+ * track.
+ *
+ * Also we need a RouteError message, which is send back when route is out
+ * of date
+ *
+ * When scanning for new meshes, really should take into account how often
+ * I've seen the other nodes, only when detected couple of times switch over.
+ * Also might want to connect to anything if not connected to anything
+ *
+ * We need a on mesh id change callback, that will change the mac id
+ *
+ * Time sync will need to be changed to accept the time from the source, not
+ * anyone else
+ */
+
 SCENARIO("The MeshTest class works correctly") {
   using namespace logger;
   Scheduler scheduler;
@@ -154,4 +184,43 @@ SCENARIO("The MeshTest class works correctly") {
   }
 
   REQUIRE(mesh1.bmStorage.id == mesh2.bmStorage.id);
+  // Should have taken the id with the highest nodeid
+  REQUIRE(mesh1.bmStorage.id == mesh2.bmStorage.originalID);
+}
+
+SCENARIO("Mesh ID is correctly passed around") {
+  delay(1000);
+  using namespace logger;
+  Log.setLogLevel(ERROR);
+
+  Scheduler scheduler;
+  boost::asio::io_service io_service;
+  Nodes n(&scheduler, 12, io_service);
+
+  for (auto i = 0; i < 1000; ++i) {
+    n.update();
+    delay(10);
+  }
+
+  auto id = n.nodes[11]->bmStorage.id;
+  for (auto &&node : n.nodes) {
+    if (node->subs.size() > 0) REQUIRE((*node->subs.begin())->nodeId != 0);
+    REQUIRE(node->bmStorage.id == id);
+  }
+
+  // Disconnect
+  auto nid = runif(0, 11);
+  (*n.nodes[nid]->subs.begin())->close();
+  for (auto i = 0; i < 1000; ++i) {
+    n.update();
+    delay(10);
+  }
+  std::map<uint32_t, int> m;
+  for (auto &&node : n.nodes) {
+    auto i = node->bmStorage.id;
+    if (m.count(i) == 0) m[i] = 0;
+    ++m[i];
+  }
+  // There should be two meshes now
+  REQUIRE(m.size() == 2);
 }
