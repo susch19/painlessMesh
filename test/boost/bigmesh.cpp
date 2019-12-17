@@ -33,10 +33,8 @@ class MeshTest : public PMesh {
     painlessmesh::tcp::initServer<MeshConnection, PMesh>(*pServer, (*this));
 
     this->bmStorage.originalID = runif(1, 254);
-    this->bmStorage.weight = this->nodeId;
     if (this->isRoot()) {
       this->bmStorage.originalID = 255;
-      this->bmStorage.weight = 0 - 1;  // Max value
     }
     this->bmStorage.id = this->bmStorage.originalID;
     this->bmStorage.source = this->nodeId;
@@ -44,8 +42,6 @@ class MeshTest : public PMesh {
     idTask = this->addTask(10 * TASK_SECOND, TASK_FOREVER, [this]() {
       auto pkg = bigmesh::MeshIDPackage(33);
       pkg.id = this->bmStorage.id;
-      pkg.weight = this->bmStorage.weight;
-
       pkg.from = this->nodeId;
       this->sendPackage(&pkg);
     });
@@ -56,26 +52,18 @@ class MeshTest : public PMesh {
       auto pkg = var.to<bigmesh::MeshIDPackage>();
 
       // If node id of the connection was unset then set it now
-      if (connection->nodeId == 0) connection->nodeId = pkg.from;
+      if (connection->nodeId == 0) {
+        connection->nodeId = pkg.from;
+        this->newConnectionCallbacks.execute(pkg.from);
+        connection->newConnection = false;
+      }
 
-      // Did anything change?
-      if (pkg.weight != this->bmStorage.weight) {
-        if (pkg.from == this->bmStorage.source) {
-          // Something changed upstream
-          if (pkg.weight > this->nodeId) {
-            this->bmStorage.id = pkg.id;
-            this->bmStorage.weight = pkg.weight;
-          } else {
-            // They lost their id rights, so now I am the boss again
-            // Until I hear differently
-            this->bmStorage.id = this->bmStorage.originalID;
-            this->bmStorage.source = this->nodeId;
-            this->bmStorage.weight = this->nodeId;
-          }
-        } else if (pkg.weight > this->bmStorage.weight) {
+      if (this->bmStorage.id != pkg.id) {
+        if (connection->station && (this->bmStorage.id != pkg.id ||
+                                    this->bmStorage.source != pkg.from)) {
           this->bmStorage.id = pkg.id;
           this->bmStorage.source = pkg.from;
-          this->bmStorage.weight = pkg.weight;
+          this->idTask->forceNextIteration();
         }
         this->idTask->forceNextIteration();
       }
@@ -93,7 +81,6 @@ class MeshTest : public PMesh {
       if (nodeId == this->bmStorage.source) {
         this->bmStorage.id = this->bmStorage.originalID;
         this->bmStorage.source = this->nodeId;
-        this->bmStorage.weight = this->nodeId;
         this->idTask->forceNextIteration();
       }
     });
@@ -184,8 +171,6 @@ SCENARIO("The MeshTest class works correctly") {
   }
 
   REQUIRE(mesh1.bmStorage.id == mesh2.bmStorage.id);
-  // Should have taken the id with the highest nodeid
-  REQUIRE(mesh1.bmStorage.id == mesh2.bmStorage.originalID);
 }
 
 SCENARIO("Mesh ID is correctly passed around") {
