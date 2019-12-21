@@ -11,14 +11,12 @@
 WiFiClass WiFi;
 ESPClass ESP;
 
-#include "painlessMeshConnection.h"
-
-#include "painlessmesh/mesh.hpp"
-
 #include "bigmesh/mesh.hpp"
 #include "bigmesh/meshid.hpp"
 
-using PMesh = bigmesh::Mesh<MeshConnection>;
+#include "painlessmesh/connection.hpp"
+
+using PMesh = bigmesh::Mesh<bigmesh::Connection>;
 
 using namespace painlessmesh;
 painlessmesh::logger::LogClass Log;
@@ -31,7 +29,8 @@ class MeshTest : public PMesh {
     this->init(scheduler, this->nodeId);
 
     pServer = std::make_shared<AsyncServer>(io_service, this->nodeId);
-    painlessmesh::tcp::initServer<MeshConnection, PMesh>(*pServer, (*this));
+    painlessmesh::tcp::initServer<bigmesh::Connection, PMesh>(*pServer,
+                                                              (*this));
 
     this->meshId.originalID = runif(1, 254);
     if (this->isRoot()) {
@@ -48,7 +47,7 @@ class MeshTest : public PMesh {
     });
 
     this->onPackage(33, [this](painlessmesh::protocol::Variant var,
-                               std::shared_ptr<MeshConnection> connection,
+                               std::shared_ptr<bigmesh::Connection> connection,
                                uint32_t arrivaltime) {
       auto pkg = var.to<bigmesh::MeshIDPackage>();
 
@@ -56,7 +55,6 @@ class MeshTest : public PMesh {
       if (connection->nodeId == 0) {
         connection->nodeId = pkg.from;
         this->newConnectionCallbacks.execute(pkg.from);
-        connection->newConnection = false;
       }
 
       if (this->meshId.id != pkg.id) {
@@ -71,11 +69,7 @@ class MeshTest : public PMesh {
       return false;
     });
 
-    // Add handler for new connections
-    // TODO: this is only called after first sync message is accepted
-    // won't be needed once we remove sync messages
-    this->onNewConnection(
-        [this](auto nodeId) { this->idTask->forceNextIteration(); });
+    this->onUnknownConnection([this]() { this->idTask->forceNextIteration(); });
 
     // Handler for broken connections
     this->onDroppedConnection([this](auto nodeId) {
@@ -89,7 +83,7 @@ class MeshTest : public PMesh {
 
   void connect(MeshTest &mesh) {
     auto pClient = new AsyncClient(io_service);
-    painlessmesh::tcp::connect<MeshConnection, PMesh>(
+    painlessmesh::tcp::connect<bigmesh::Connection, PMesh>(
         (*pClient), boost::asio::ip::address::from_string("127.0.0.1"),
         mesh.nodeId, (*this));
   }

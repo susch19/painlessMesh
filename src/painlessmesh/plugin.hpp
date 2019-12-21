@@ -102,7 +102,7 @@ class NeighbourPackage : public plugin::SinglePackage {
  * - tasks?
  */
 template <typename T>
-class PackageHandler : public layout::Layout<T> {
+class PackageHandler {
  public:
   void stop() {
     for (auto&& task : taskList) {
@@ -117,24 +117,6 @@ class PackageHandler : public layout::Layout<T> {
       Log(logger::ERROR,
           "~PackageHandler(): Always call PackageHandler::stop(scheduler) "
           "before calling this destructor");
-  }
-
-  bool sendPackage(const protocol::PackageInterface* pkg) {
-    auto variant = protocol::Variant(pkg);
-    // if single or neighbour with direction
-    if (variant.routing() == router::SINGLE ||
-        (variant.routing() == router::NEIGHBOUR && variant.dest() != 0)) {
-      return router::send(variant, (*this));
-    }
-
-    // if broadcast or neighbour without direction
-    if (variant.routing() == router::BROADCAST ||
-        (variant.routing() == router::NEIGHBOUR && variant.dest() == 0)) {
-      auto i = router::broadcast(variant, (*this), 0);
-      if (i > 0) return true;
-      return false;
-    }
-    return false;
   }
 
   /**

@@ -137,6 +137,25 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
     Log(DEBUG, "routePackage(): No callbacks executed; %u, %s\n", variant->type(), pkg.c_str());
 }
 
+template <class M, class T>
+bool sendPackage(M &mesh, const T* pkg) {
+  auto variant = protocol::Variant(pkg);
+  // if single or neighbour with direction
+  if (variant.routing() == router::SINGLE ||
+      (variant.routing() == router::NEIGHBOUR && variant.dest() != 0)) {
+    return router::send(variant, mesh);
+  }
+
+  // if broadcast or neighbour without direction
+  if (variant.routing() == router::BROADCAST ||
+      (variant.routing() == router::NEIGHBOUR && variant.dest() == 0)) {
+    auto i = router::broadcast(variant, mesh, 0);
+    if (i > 0) return true;
+    return false;
+  }
+  return false;
+}
+
 template <class T, class U>
 void handleNodeSync(T& mesh, protocol::NodeTree newTree,
                     std::shared_ptr<U> conn) {

@@ -3,13 +3,18 @@
 
 #include "painlessmesh/configuration.hpp"
 
+#include "painlessmesh/connection.hpp"
 #include "painlessmesh/logger.hpp"
 #include "painlessmesh/plugin.hpp"
+#include "painlessmesh/tcp.hpp"
 
 namespace bigmesh {
+
 template <class T>
 class Mesh : public painlessmesh::plugin::PackageHandler<T> {
  public:
+  uint32_t nodeId = 0;
+
   void init(uint32_t id) {
     using namespace painlessmesh::logger;
 
@@ -58,6 +63,33 @@ class Mesh : public painlessmesh::plugin::PackageHandler<T> {
    */
   bool isRoot() { return this->root; };
 
+  bool sendPackage(painlessmesh::protocol::PackageInterface *pkg) {
+    auto variant = painlessmesh::protocol::Variant(pkg);
+    TSTRING msg;
+    variant.printTo(msg, false);
+    if (variant.routing() == painlessmesh::router::NEIGHBOUR) {
+      for (auto &&sub : this->subs) {
+        if (variant.dest() == 0 || variant.dest() == sub->nodeId) {
+          sub->write(msg);
+        }
+      }
+      return true;
+    }
+
+    std::cout << "sendPackage not implemented" << std::endl;
+    return false;
+  };
+
+  /** Callback that gets called on any incoming TCP connection
+   *
+   * Note that once the node is know, onNewConnection is called and users
+   * generally should subscribe to that event. The unknownConnection is meant
+   * for low level usage.
+   */
+  void onUnknownConnection(std::function<void()> onUnknownConnection) {
+    unknownConnectionCallbacks.push_back(onUnknownConnection);
+  }
+
   /** Callback that gets called every time the local node makes a new
    * connection.
    *
@@ -83,7 +115,8 @@ class Mesh : public painlessmesh::plugin::PackageHandler<T> {
    * });
    * \endcode
    */
-  void onDroppedConnection(std::function<void(uint32_t nodeId)> onDroppedConnection) {
+  void onDroppedConnection(
+      std::function<void(uint32_t nodeId)> onDroppedConnection) {
     droppedConnectionCallbacks.push_back(
         [onDroppedConnection](uint32_t nodeId, bool station) {
           if (nodeId != 0) onDroppedConnection(nodeId);
@@ -107,12 +140,14 @@ class Mesh : public painlessmesh::plugin::PackageHandler<T> {
     if (!isExternalScheduler) delete mScheduler;
   }
 
+  std::list<std::shared_ptr<T>> subs;
+
  protected:
   void eraseClosedConnections() {
     using namespace painlessmesh::logger;
     Log(CONNECTION, "eraseClosedConnections():\n");
     this->subs.remove_if(
-        [](const std::shared_ptr<T> &conn) { return !conn->connected; });
+        [](const std::shared_ptr<T> &conn) { return !conn->connected(); });
   }
 
   void setScheduler(Scheduler *baseScheduler) {
@@ -149,6 +184,7 @@ class Mesh : public painlessmesh::plugin::PackageHandler<T> {
   bool root = false;
 
   // Callback functions
+  painlessmesh::callback::List<> unknownConnectionCallbacks;
   painlessmesh::callback::List<uint32_t> newConnectionCallbacks;
   painlessmesh::callback::List<uint32_t, bool> droppedConnectionCallbacks;
 
@@ -163,8 +199,47 @@ class Mesh : public painlessmesh::plugin::PackageHandler<T> {
   friend void painlessmesh::tcp::initServer<T, Mesh>(AsyncServer &, Mesh &);
   friend void painlessmesh::tcp::connect<T, Mesh>(AsyncClient &, IPAddress,
                                                   uint16_t, Mesh &);
-
 };
+
+class Connection : public painlessmesh::tcp::BufferedConnection {
+ public:
+  uint32_t nodeId = 0;
+  Mesh<Connection> *mesh;
+  bool station = false;
+
+  Connection(AsyncClient *client, Mesh<bigmesh::Connection> *mesh, bool station)
+      : painlessmesh::tcp::BufferedConnection(client),
+        mesh(mesh),
+        station(station) {}
+
+  void initTasks() {
+    this->initialize(mesh->mScheduler);
+
+    this->onReceive(
+        [mesh = mesh, self = this->shared_from_this()](TSTRING str) {
+          auto variant = painlessmesh::protocol::Variant(str);
+          mesh->callbackList.execute(variant.type(), variant, self, 0);
+        });
+
+    this->onDisconnect([mesh = mesh, self = this->shared_from_this()]() {
+      mesh->addTask([mesh, nodeId = self->nodeId, station = self->station]() {
+        mesh->droppedConnectionCallbacks.execute(nodeId, station);
+      });
+      self->nodeId = 0;
+    });
+    mesh->unknownConnectionCallbacks.execute();
+  }
+
+  // For compatibility with MeshConnection
+  void initTCPCallbacks() {}
+
+  bool addMessage(TSTRING msg, bool priority = false) {
+    return this->write(msg, priority);
+  }
+
+ protected:
+  std::shared_ptr<Connection> shared_from_this() { return shared_from(this); }
+};  // namespace bigmesh
 };  // namespace bigmesh
 
 #endif

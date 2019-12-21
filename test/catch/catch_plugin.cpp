@@ -104,15 +104,6 @@ SCENARIO("We can send a custom package") {
     };
     THEN("We can pass it to handler") { handler.onPackage(20, func); }
   }
-
-  GIVEN("A package") {
-    auto handler = plugin::PackageHandler<MockConnection>();
-    auto pkg = CustomPackage();
-    THEN("We can call sendPackage") {
-      auto res = handler.sendPackage(&pkg);
-      REQUIRE(!res);
-    }
-  }
 }
 
 SCENARIO("We can add tasks to the taskscheduler") {

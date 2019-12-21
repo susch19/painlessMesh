@@ -25,7 +25,9 @@ typedef std::function<void(uint32_t nodeId, int32_t delay)> nodeDelayCallback_t;
  * Brings all the functions together except for the WiFi functions
  */
 template <class T>
-class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
+class Mesh : public ntp::MeshTime,
+             public plugin::PackageHandler<T>,
+             public layout::Layout<T> {
  public:
   void init(uint32_t id) {
     using namespace logger;
@@ -163,6 +165,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return false;
   }
 
+  bool sendPackage(const protocol::PackageInterface* pkg) {
+    return router::sendPackage((*this), pkg);
+  }
   /** Sends a node a packet to measure network trip delay to that node.
    *
    * After calling this function, user program have to wait to the response in

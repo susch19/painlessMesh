@@ -266,7 +266,7 @@ class State : public protocol::PackageInterface {
 };
 
 template <class T>
-void addPackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& mesh,
+void addPackageCallback(Scheduler& scheduler, T& mesh,
                         TSTRING role = "") {
   using namespace logger;
 #if defined(ESP32) || defined(ESP8266)
@@ -308,7 +308,7 @@ void addPackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& mesh,
         updateFW->md5 = pkg.md5;
         // enable the request task
         updateFW->task =
-            mesh.addTask(scheduler, 30 * TASK_SECOND, 10,
+            mesh.addTask(30 * TASK_SECOND, 10,
                          [request, &mesh]() { mesh.sendPackage(&request); });
         updateFW->task->setOnDisable([updateFW]() {
           Log(ERROR, "OTA: Did not receive the requested data.\n");
