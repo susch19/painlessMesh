@@ -39,12 +39,6 @@
 #include "painlessmesh/tcp.hpp"
 using namespace painlessmesh::logger;
 
-#define MIN_FREE_MEMORY \
-  4000  // Minimum free memory, besides here all packets in queue are discarded.
-#define MAX_MESSAGE_QUEUE \
-  50  // MAX number of unsent messages in queue. Newer messages are discarded
-#define MAX_CONSECUTIVE_SEND 5  // Max message burst
-
 /*! \mainpage painlessMesh: A painless way to setup a mesh.
  *
  * painlessMesh is designed in a modular way, with many parent classes. The best
