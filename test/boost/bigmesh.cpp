@@ -32,17 +32,21 @@ class MeshTest : public PMesh {
     painlessmesh::tcp::initServer<bigmesh::Connection, PMesh>(*pServer,
                                                               (*this));
 
-    this->meshId.originalID = runif(1, 254);
+    this->meshId.originalID = runif(1, 240);
+    this->meshId.weight = this->nodeId;
     if (this->isRoot()) {
       this->meshId.originalID = 255;
+      this->meshId.weight = 0 - 1;  // max value
     }
     this->meshId.id = this->meshId.originalID;
     this->meshId.source = this->nodeId;
 
     idTask = this->addTask(10 * TASK_SECOND, TASK_FOREVER, [this]() {
+      // idTask = this->addTask(10, TASK_FOREVER, [this]() {
       auto pkg = bigmesh::MeshIDPackage(33);
       pkg.id = this->meshId.id;
       pkg.from = this->nodeId;
+      pkg.weight = this->meshId.weight;
       this->sendPackage(&pkg);
     });
 
@@ -57,15 +61,28 @@ class MeshTest : public PMesh {
         this->newConnectionCallbacks.execute(pkg.from);
       }
 
-      if (this->meshId.id != pkg.id) {
-        if (connection->station &&
-            (this->meshId.id != pkg.id || this->meshId.source != pkg.from)) {
+      // Did anything change?
+      if (pkg.weight != this->meshId.weight) {
+        if (pkg.from == this->meshId.source) {
+          // Something changed upstream
+          if (pkg.weight > this->nodeId) {
+            this->meshId.id = pkg.id;
+            this->meshId.weight = pkg.weight;
+          } else {
+            // They lost their id rights, so now I am the boss again
+            // Until I hear differently
+            this->meshId.id = this->meshId.originalID;
+            this->meshId.source = this->nodeId;
+            this->meshId.weight = this->nodeId;
+          }
+        } else if (pkg.weight > this->meshId.weight) {
           this->meshId.id = pkg.id;
           this->meshId.source = pkg.from;
-          this->idTask->forceNextIteration();
+          this->meshId.weight = pkg.weight;
         }
         this->idTask->forceNextIteration();
       }
+
       return false;
     });
 
@@ -76,6 +93,7 @@ class MeshTest : public PMesh {
       if (nodeId == this->meshId.source) {
         this->meshId.id = this->meshId.originalID;
         this->meshId.source = this->nodeId;
+        this->meshId.weight = this->nodeId;
         this->idTask->forceNextIteration();
       }
     });
@@ -96,12 +114,17 @@ class MeshTest : public PMesh {
 
 class Nodes {
  public:
-  Nodes(Scheduler *scheduler, size_t n, boost::asio::io_service &io)
+  Nodes(Scheduler *scheduler, size_t n, boost::asio::io_service &io,
+        bool loop = true)
       : io_service(io) {
+    size_t j = n + 1;
+    if (loop) j = runif(1, n - 1);
     for (size_t i = 0; i < n; ++i) {
       auto m = std::make_shared<MeshTest>(scheduler, i + baseID, io_service);
       if (i > 0) m->connect((*nodes[runif(0, i - 1)]));
       nodes.push_back(m);
+
+      if (i == j) nodes[0]->connect((*nodes[runif(1, i)]));
     }
   }
   void execute() {
@@ -151,6 +174,17 @@ class Nodes {
  * Stability could measure how stable the mesh id is
  *
  * How to deal with time outs?
+ *
+ * There is a corner case, when the node with the highest nodeid (weight) is the
+ * only one that can bridge two separate networks (and has a low meshid). It
+ * could be permanently switching, because once it leaves one submesh, that will
+ * take a higher meshId and this node will impose a lower meshId on the other
+ * submesh, causing it to switch back again and this keeps repeating. To
+ * overcome this we need to add a corner case, where when the node whose
+ * nodeid==meshid.weight switches we set its originalID to the other ids+1 (we
+ * might need a bit of think about what happens if the other one has id 254 (255
+ * is reserved), maybe we should limit it to 240 by default, that gives us some
+ * leeway.
  */
 
 SCENARIO("The MeshTest class works correctly") {
@@ -173,6 +207,43 @@ SCENARIO("The MeshTest class works correctly") {
 }
 
 SCENARIO("Mesh ID is correctly passed around") {
+  delay(1000);
+  using namespace logger;
+  Log.setLogLevel(ERROR);
+
+  Scheduler scheduler;
+  boost::asio::io_service io_service;
+  Nodes n(&scheduler, 12, io_service, false);
+
+  for (auto i = 0; i < 1000; ++i) {
+    n.execute();
+    delay(10);
+  }
+
+  auto id = n.nodes[11]->meshId.id;
+  for (auto &&node : n.nodes) {
+    if (node->subs.size() > 0) REQUIRE((*node->subs.begin())->nodeId != 0);
+    REQUIRE(node->meshId.id == id);
+  }
+
+  // Disconnect
+  auto nid = runif(0, 11);
+  (*n.nodes[nid]->subs.begin())->close();
+  for (auto i = 0; i < 1000; ++i) {
+    n.execute();
+    delay(10);
+  }
+  std::map<uint32_t, int> m;
+  for (auto &&node : n.nodes) {
+    auto i = node->meshId.id;
+    if (m.count(i) == 0) m[i] = 0;
+    ++m[i];
+  }
+  // There should be two meshes now
+  REQUIRE(m.size() == 2);
+}
+
+SCENARIO("Mesh ID is correctly passed around in looped nodes") {
   delay(1000);
   using namespace logger;
   Log.setLogLevel(ERROR);
@@ -205,6 +276,24 @@ SCENARIO("Mesh ID is correctly passed around") {
     if (m.count(i) == 0) m[i] = 0;
     ++m[i];
   }
-  // There should be two meshes now
-  REQUIRE(m.size() == 2);
+  // There should be one or two meshes now
+  REQUIRE(m.size() <= 2);
+
+  auto nid2 = runif(0, 11);
+  while (nid2 == nid) nid2 = runif(0, 11);
+
+  (*n.nodes[nid2]->subs.begin())->close();
+  for (auto i = 0; i < 1000; ++i) {
+    n.execute();
+    delay(10);
+  }
+  m.clear();
+  for (auto &&node : n.nodes) {
+    auto i = node->meshId.id;
+    if (m.count(i) == 0) m[i] = 0;
+    ++m[i];
+  }
+  // There should be two or three meshes now
+  REQUIRE(m.size() >= 2);
+  REQUIRE(m.size() <= 3);
 }
