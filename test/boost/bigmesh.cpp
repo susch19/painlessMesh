@@ -233,3 +233,43 @@ SCENARIO("Mesh ID is correctly passed around in looped nodes") {
   REQUIRE(m.size() >= 2);
   REQUIRE(m.size() <= 3);
 }
+
+SCENARIO("Broadcast is working") {
+  delay(1000);
+  using namespace logger;
+  Log.setLogLevel(ERROR);
+
+  Scheduler scheduler;
+  boost::asio::io_service io_service;
+  Nodes n(&scheduler, 12, io_service);
+
+  for (auto i = 0; i < 1000; ++i) {
+    n.execute();
+    delay(10);
+  }
+
+  auto pkg = bigmesh::aodv::BroadcastBasePackage(2);
+  n.nodes[0]->sendPackage(&pkg);
+
+  for (auto i = 0; i < 1000; ++i) {
+    n.execute();
+    delay(10);
+  }
+
+  auto pkg2 = bigmesh::aodv::BroadcastBasePackage(2);
+  n.nodes[0]->sendPackage(&pkg2);
+
+  for (auto i = 0; i < 1000; ++i) {
+    n.execute();
+    delay(10);
+  }
+
+  auto pkg3 = bigmesh::aodv::BroadcastBasePackage(2);
+  auto nid = runif(0, 11);
+  n.nodes[nid]->sendPackage(&pkg3);
+
+  for (auto i = 0; i < 1000; ++i) {
+    n.execute();
+    delay(10);
+  }
+}

@@ -1,6 +1,8 @@
 #ifndef _BIGMESH_MESHID_HPP_
 #define _BIGMESH_MESHID_HPP_
 
+#include "painlessmesh/plugin.hpp"
+
 #include "bigmesh/aodv.hpp"
 
 namespace bigmesh {

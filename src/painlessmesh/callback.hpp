@@ -1,11 +1,13 @@
 #ifndef _PAINLESS_MESH_CALLBACK_HPP_
 #define _PAINLESS_MESH_CALLBACK_HPP_
 
-#include<map>
+#include <list>
+#include <map>
 
 #include "painlessmesh/configuration.hpp"
 
 #include "painlessmesh/logger.hpp"
+#include "painlessmesh/protocol.hpp"
 
 extern painlessmesh::logger::LogClass Log;
 

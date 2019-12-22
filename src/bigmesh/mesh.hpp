@@ -8,10 +8,13 @@
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/tcp.hpp"
 
+#include "bigmesh/aodv.hpp"
+
 namespace bigmesh {
 
 template <class T>
-class Mesh : public painlessmesh::plugin::PackageHandler<T> {
+class Mesh : public painlessmesh::plugin::PackageHandler<T>,
+             public bigmesh::aodv::Mesh {
  public:
   uint32_t nodeId = 0;
 
@@ -67,7 +70,8 @@ class Mesh : public painlessmesh::plugin::PackageHandler<T> {
     auto variant = painlessmesh::protocol::Variant(pkg);
     TSTRING msg;
     variant.printTo(msg, false);
-    if (variant.routing() == painlessmesh::router::NEIGHBOUR) {
+    if (variant.routing() == painlessmesh::router::NEIGHBOUR ||
+        variant.routing() == painlessmesh::router::BROADCAST) {
       for (auto &&sub : this->subs) {
         if (variant.dest() == 0 || variant.dest() == sub->nodeId) {
           sub->write(msg);
@@ -78,7 +82,17 @@ class Mesh : public painlessmesh::plugin::PackageHandler<T> {
 
     std::cout << "sendPackage not implemented" << std::endl;
     return false;
-  };
+  }
+
+  bool sendPackage(aodv::BroadcastBasePackage *pkg) {
+    pkg->from = this->nodeId;
+
+    ++this->broadcastID;
+    pkg->mid = this->broadcastID;
+
+    painlessmesh::protocol::PackageInterface *parent = pkg;
+    return this->sendPackage(parent);
+  }
 
   /** Callback that gets called on any incoming TCP connection
    *
@@ -217,8 +231,28 @@ class Connection : public painlessmesh::tcp::BufferedConnection {
 
     this->onReceive(
         [mesh = mesh, self = this->shared_from_this()](TSTRING str) {
-          auto variant = painlessmesh::protocol::Variant(str);
-          mesh->callbackList.execute(variant.type(), variant, self, 0);
+          auto variant = bigmesh::protocol::Variant(str);
+          // Routing
+          if (variant.routing() == painlessmesh::router::BROADCAST) {
+            if (mesh->broadcastIDMap.count(variant.from()) == 0) {
+              mesh->broadcastIDMap[variant.from()] = aodv::MessageID();
+            }
+            if (mesh->broadcastIDMap[variant.from()] < variant.mid()) {
+              for (auto &&sub : mesh->subs) {
+                if (sub->nodeId != self->nodeId) {
+                  sub->write(str);
+                }
+              }
+              // Handling
+              std::cout << "Handling " << str << std::endl;
+              mesh->callbackList.execute(variant.type(), variant, self, 0);
+            }
+            mesh->broadcastIDMap[variant.from()] = variant.mid();
+          }
+
+          // Handling
+          if (variant.routing() == painlessmesh::router::NEIGHBOUR)
+            mesh->callbackList.execute(variant.type(), variant, self, 0);
         });
 
     this->onDisconnect([mesh = mesh, self = this->shared_from_this()]() {

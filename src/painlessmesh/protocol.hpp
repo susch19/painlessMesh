@@ -554,6 +554,14 @@ class Variant {
     return 0;
   }
 
+  /**
+   * Origination node of the package
+   */
+  uint32_t from() {
+    if (jsonObj.containsKey("from")) return jsonObj["from"].as<uint32_t>();
+    return 0;
+  }
+
 #ifdef ARDUINOJSON_ENABLE_STD_STRING
   /**
    * Print a variant to a string
@@ -584,7 +592,7 @@ class Variant {
 
   DeserializationError error = DeserializationError::Ok;
 
- private:
+ protected:
   DynamicJsonDocument jsonBuffer;
   JsonObject jsonObj;
 };
