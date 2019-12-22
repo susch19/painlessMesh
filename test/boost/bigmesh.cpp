@@ -21,82 +21,18 @@ using PMesh = bigmesh::Mesh<bigmesh::Connection>;
 using namespace painlessmesh;
 painlessmesh::logger::LogClass Log;
 
-class MeshTest : public PMesh {
+class MeshTest : public PMesh, public bigmesh::meshid::Mesh {
  public:
   MeshTest(Scheduler *scheduler, size_t id, boost::asio::io_service &io)
       : io_service(io) {
     this->nodeId = id;
-    this->init(scheduler, this->nodeId);
+    this->initialize(scheduler, this->nodeId);
 
     pServer = std::make_shared<AsyncServer>(io_service, this->nodeId);
     painlessmesh::tcp::initServer<bigmesh::Connection, PMesh>(*pServer,
                                                               (*this));
 
-    this->meshId.originalID = runif(1, 240);
-    this->meshId.weight = this->nodeId;
-    if (this->isRoot()) {
-      this->meshId.originalID = 255;
-      this->meshId.weight = 0 - 1;  // max value
-    }
-    this->meshId.id = this->meshId.originalID;
-    this->meshId.source = this->nodeId;
-
-    idTask = this->addTask(10 * TASK_SECOND, TASK_FOREVER, [this]() {
-      // idTask = this->addTask(10, TASK_FOREVER, [this]() {
-      auto pkg = bigmesh::MeshIDPackage(33);
-      pkg.id = this->meshId.id;
-      pkg.from = this->nodeId;
-      pkg.weight = this->meshId.weight;
-      this->sendPackage(&pkg);
-    });
-
-    this->onPackage(33, [this](painlessmesh::protocol::Variant var,
-                               std::shared_ptr<bigmesh::Connection> connection,
-                               uint32_t arrivaltime) {
-      auto pkg = var.to<bigmesh::MeshIDPackage>();
-
-      // If node id of the connection was unset then set it now
-      if (connection->nodeId == 0) {
-        connection->nodeId = pkg.from;
-        this->newConnectionCallbacks.execute(pkg.from);
-      }
-
-      // Did anything change?
-      if (pkg.weight != this->meshId.weight) {
-        if (pkg.from == this->meshId.source) {
-          // Something changed upstream
-          if (pkg.weight > this->nodeId) {
-            this->meshId.id = pkg.id;
-            this->meshId.weight = pkg.weight;
-          } else {
-            // They lost their id rights, so now I am the boss again
-            // Until I hear differently
-            this->meshId.id = this->meshId.originalID;
-            this->meshId.source = this->nodeId;
-            this->meshId.weight = this->nodeId;
-          }
-        } else if (pkg.weight > this->meshId.weight) {
-          this->meshId.id = pkg.id;
-          this->meshId.source = pkg.from;
-          this->meshId.weight = pkg.weight;
-        }
-        this->idTask->forceNextIteration();
-      }
-
-      return false;
-    });
-
-    this->onUnknownConnection([this]() { this->idTask->forceNextIteration(); });
-
-    // Handler for broken connections
-    this->onDroppedConnection([this](auto nodeId) {
-      if (nodeId == this->meshId.source) {
-        this->meshId.id = this->meshId.originalID;
-        this->meshId.source = this->nodeId;
-        this->meshId.weight = this->nodeId;
-        this->idTask->forceNextIteration();
-      }
-    });
+    bigmesh::meshid::initialize(this);
   }
 
   void connect(MeshTest &mesh) {
@@ -106,10 +42,10 @@ class MeshTest : public PMesh {
         mesh.nodeId, (*this));
   }
 
-  bigmesh::MeshID meshId;
-  std::shared_ptr<Task> idTask;
   std::shared_ptr<AsyncServer> pServer;
   boost::asio::io_service &io_service;
+
+  friend void bigmesh::meshid::initialize<MeshTest>(MeshTest *);
 };
 
 class Nodes {
@@ -178,7 +114,7 @@ class Nodes {
  * There is a corner case, when the node with the highest nodeid (weight) is the
  * only one that can bridge two separate networks (and has a low meshid). It
  * could be permanently switching, because once it leaves one submesh, that will
- * take a higher meshId and this node will impose a lower meshId on the other
+ * take a higher meshID and this node will impose a lower meshID on the other
  * submesh, causing it to switch back again and this keeps repeating. To
  * overcome this we need to add a corner case, where when the node whose
  * nodeid==meshid.weight switches we set its originalID to the other ids+1 (we
@@ -203,7 +139,7 @@ SCENARIO("The MeshTest class works correctly") {
     io_service.poll();
   }
 
-  REQUIRE(mesh1.meshId.id == mesh2.meshId.id);
+  REQUIRE(mesh1.meshID() == mesh2.meshID());
 }
 
 SCENARIO("Mesh ID is correctly passed around") {
@@ -220,10 +156,10 @@ SCENARIO("Mesh ID is correctly passed around") {
     delay(10);
   }
 
-  auto id = n.nodes[11]->meshId.id;
+  auto id = n.nodes[11]->meshID();
   for (auto &&node : n.nodes) {
     if (node->subs.size() > 0) REQUIRE((*node->subs.begin())->nodeId != 0);
-    REQUIRE(node->meshId.id == id);
+    REQUIRE(node->meshID() == id);
   }
 
   // Disconnect
@@ -235,7 +171,7 @@ SCENARIO("Mesh ID is correctly passed around") {
   }
   std::map<uint32_t, int> m;
   for (auto &&node : n.nodes) {
-    auto i = node->meshId.id;
+    auto i = node->meshID();
     if (m.count(i) == 0) m[i] = 0;
     ++m[i];
   }
@@ -257,10 +193,10 @@ SCENARIO("Mesh ID is correctly passed around in looped nodes") {
     delay(10);
   }
 
-  auto id = n.nodes[11]->meshId.id;
+  auto id = n.nodes[11]->meshID();
   for (auto &&node : n.nodes) {
     if (node->subs.size() > 0) REQUIRE((*node->subs.begin())->nodeId != 0);
-    REQUIRE(node->meshId.id == id);
+    REQUIRE(node->meshID() == id);
   }
 
   // Disconnect
@@ -272,7 +208,7 @@ SCENARIO("Mesh ID is correctly passed around in looped nodes") {
   }
   std::map<uint32_t, int> m;
   for (auto &&node : n.nodes) {
-    auto i = node->meshId.id;
+    auto i = node->meshID();
     if (m.count(i) == 0) m[i] = 0;
     ++m[i];
   }
@@ -289,7 +225,7 @@ SCENARIO("Mesh ID is correctly passed around in looped nodes") {
   }
   m.clear();
   for (auto &&node : n.nodes) {
-    auto i = node->meshId.id;
+    auto i = node->meshID();
     if (m.count(i) == 0) m[i] = 0;
     ++m[i];
   }

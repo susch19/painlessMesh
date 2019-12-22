@@ -15,7 +15,7 @@ class Mesh : public painlessmesh::plugin::PackageHandler<T> {
  public:
   uint32_t nodeId = 0;
 
-  void init(uint32_t id) {
+  void initialize(uint32_t id) {
     using namespace painlessmesh::logger;
 
     if (!isExternalScheduler) {
@@ -40,9 +40,9 @@ class Mesh : public painlessmesh::plugin::PackageHandler<T> {
     });
   }
 
-  void init(Scheduler *scheduler, uint32_t id) {
+  void initialize(Scheduler *scheduler, uint32_t id) {
     this->setScheduler(scheduler);
-    this->init(id);
+    this->initialize(id);
   }
 
   /** Perform crucial maintenance task
