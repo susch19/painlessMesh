@@ -12,4 +12,7 @@
 #define _TASK_STD_FUNCTION          // Support for std::function (ESP8266 ONLY)
 //  #define _TASK_DEBUG             // Make all methods and variables public for debug purposes
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #include <TaskScheduler.h>
+#pragma GCC diagnostic pop

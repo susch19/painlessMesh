@@ -16,6 +16,8 @@
 #endif
 #endif
 
+
+
 namespace painlessmesh {
 namespace plugin {
 
@@ -265,8 +267,36 @@ class State : public protocol::PackageInterface {
   std::shared_ptr<Task> task;
 };
 
+typedef std::function<size_t(painlessmesh::plugin::ota::DataRequest, char* buffer)> otaDataPacketCallbackType_t;
+
 template <class T>
-void addPackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& mesh,
+void addSendPackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& mesh,
+                        otaDataPacketCallbackType_t callback,size_t otaPartSize){
+    using namespace logger;
+    #if defined(ESP32) || defined(ESP8266)
+
+    mesh.onPackage(11,[&mesh,callback,otaPartSize](painlessmesh::protocol::Variant variant){
+      
+      auto pkg = variant.to<painlessmesh::plugin::ota::DataRequest>();
+      char buffer[otaPartSize+1] = {0};
+      auto size = callback(pkg,buffer);
+      
+      //Encode data as base64 so there are no null characters and can be shown in plaintext
+      auto b64Data = painlessmesh::base64::encode((unsigned char * )buffer,size);
+      auto reply =
+              painlessmesh::plugin::ota::Data::replyTo(pkg,
+                                b64Data,
+                                 pkg.partNo);
+      mesh.sendPackage(&reply);
+      return true;
+    });
+
+    #endif
+}
+
+
+template <class T>
+void addReceivePackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& mesh,
                         TSTRING role = "") {
   using namespace logger;
 #if defined(ESP32) || defined(ESP8266)
@@ -319,10 +349,10 @@ void addPackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& mesh,
     return false;
   });
 
-  mesh.onPackage(11, [currentFW](protocol::Variant variant) {
-    Log(ERROR, "Data request should not be send to this node\n");
-    return false;
-  });
+  // mesh.onPackage(11, [currentFW](protocol::Variant variant) {
+  //   Log(ERROR, "Data request should not be send to this node\n");
+  //   return false;
+  // });
 
   mesh.onPackage(12, [currentFW, updateFW, &mesh,
                       &scheduler](protocol::Variant variant) {
@@ -392,7 +422,7 @@ void addPackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& mesh,
         auto request = DataRequest::replyTo(pkg, updateFW->partNo);
         updateFW->task->setCallback(
             [request, &mesh]() { mesh.sendPackage(&request); });
-        updateFW->task->disable();
+        //updateFW->task->disable();
         updateFW->task->restart();
       }
     }

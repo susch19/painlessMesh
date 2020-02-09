@@ -2,9 +2,9 @@
 #ifndef _PAINLESS_MESH_CONFIGURATION_HPP_
 #define _PAINLESS_MESH_CONFIGURATION_HPP_
 
-#include<list>
+#include <list>
 
-#define _TASK_PRIORITY // Support for layered scheduling priority
+#define _TASK_PRIORITY  // Support for layered scheduling priority
 #define _TASK_STD_FUNCTION
 
 #include <TaskSchedulerDeclarations.h>
@@ -20,16 +20,21 @@
 // Enable OTA support
 #define PAINLESSMESH_ENABLE_OTA
 
-#define NODE_TIMEOUT 5 * TASK_SECOND
+// Minimum free memory, besides here all packets in queue are discarded.
+#define MIN_FREE_MEMORY 4000
+// MAX number of unsent messages in queue. Newer messages are discarded
+#define MAX_MESSAGE_QUEUE 50
+
+#define NODE_TIMEOUT 10 * TASK_SECOND
 #define SCAN_INTERVAL 30 * TASK_SECOND  // AP scan period in ms
 
 #ifdef ESP32
-#include <WiFi.h>
 #include <AsyncTCP.h>
+#include <WiFi.h>
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
-#endif // ESP32
+#endif  // ESP32
 
 typedef String TSTRING;
 
@@ -52,6 +57,6 @@ using painlessMesh = painlessmesh::wifi::Mesh;
 #define MAX_CONN 10
 #else
 #define MAX_CONN 4
-#endif // DEBUG
+#endif  // DEBUG
 
 #endif
