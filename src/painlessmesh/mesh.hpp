@@ -66,8 +66,29 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 
 #ifdef PAINLESSMESH_ENABLE_OTA
-  void initOTA(TSTRING role = "") {
-    painlessmesh::plugin::ota::addPackageCallback(*this->mScheduler, (*this),
+  std::shared_ptr<Task> offerOTA(painlessmesh::plugin::ota::Announce announce){
+    auto announceTask = 
+            this->addTask(TASK_SECOND*60,60,[this, announce]() {this->sendPackage(&announce); });
+    return announceTask;
+  }
+
+  std::shared_ptr<Task>  offerOTA(TSTRING role, TSTRING hardware, TSTRING md5,size_t noPart, bool forced = false){
+    painlessmesh::plugin::ota::Announce announce;
+    announce.md5 = md5;
+    announce.role = role;
+    announce.hardware = hardware;
+    announce.from = this->nodeId;
+    announce.noPart = noPart;
+    announce.forced = forced;
+    return offerOTA(announce);
+  }
+
+  void initOTASend(painlessmesh::plugin::ota::otaDataPacketCallbackType_t callback,size_t otaPartSize) {
+    painlessmesh::plugin::ota::addSendPackageCallback(*this->mScheduler, (*this),
+                                                  callback,otaPartSize);
+  }
+  void initOTAReceive(TSTRING role = "") {
+    painlessmesh::plugin::ota::addReceivePackageCallback(*this->mScheduler, (*this),
                                                   role);
   }
 #endif
