@@ -29,7 +29,7 @@ void setup() {
   // network (STATION_SSID)
   mesh.init( MESH_PREFIX, MESH_PASSWORD, MESH_PORT, WIFI_AP_STA, 6 );
   // Setup over the air update support
-  mesh.initOTA("bridge");
+  mesh.initOTAReceive("bridge");
 
   mesh.stationManual(STATION_SSID, STATION_PASSWORD, STATION_PORT, station_ip);
   // Bridge node, should (in most cases) be a root node. See [the wiki](https://gitlab.com/painlessMesh/painlessMesh/wikis/Possible-challenges-in-mesh-formation) for some background
