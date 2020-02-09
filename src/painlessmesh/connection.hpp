@@ -100,7 +100,7 @@ class BufferedConnection
   }
 
   void close() {
-    if (!connected) return;
+    if (!mConnected) return;
 
     // Disable tasks and callbacks
     this->sentBufferTask.setCallback(NULL);
@@ -120,9 +120,12 @@ class BufferedConnection
     receiveBuffer.clear();
     sentBuffer.clear();
 
-    disconnectCallback();
+    if (disconnectCallback) disconnectCallback();
 
-    connected = false;
+    receiveCallback = NULL;
+    disconnectCallback = NULL;
+
+    mConnected = false;
   }
 
   bool write(TSTRING data, bool priority = false) {
@@ -139,8 +142,10 @@ class BufferedConnection
     receiveCallback = callback;
   }
 
+  bool connected() { return mConnected; }
+
  protected:
-  bool connected = true;
+  bool mConnected = true;
 
   AsyncClient *client;
 
@@ -179,6 +184,12 @@ class BufferedConnection
 
   Task sentBufferTask;
   Task readBufferTask;
+
+  template <typename T>
+  std::shared_ptr<T> shared_from(T *derived) {
+    assert(this == derived);
+    return std::static_pointer_cast<T>(shared_from_this());
+  }
 };  // namespace tcp
 };  // namespace tcp
 };  // namespace painlessmesh
