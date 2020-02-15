@@ -176,8 +176,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     Log(COMMUNICATION, "sendBroadcast(): msg=%s\n", msg.c_str());
     auto pkg = painlessmesh::protocol::Broadcast(this->nodeId, 0, msg);
     auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
-    if (success && includeSelf) {
-      auto variant = protocol::Variant(pkg);
+    if (includeSelf) {
       this->callbackList.execute(pkg.type, pkg, NULL, 0);
     }
     if (success > 0) return true;
