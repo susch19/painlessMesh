@@ -38,8 +38,6 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     xSemaphore = xSemaphoreCreateMutex();
 #endif
 
-    mScheduler->enableAll();
-
     // Add package handlers
     this->callbackList = painlessmesh::ntp::addPackageCallback(
         std::move(this->callbackList), (*this));
