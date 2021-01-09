@@ -5,6 +5,7 @@
 
 #include "painlessmesh/logger.hpp"
 #include "painlessmesh/plugin.hpp"
+#include <sstream>
 
 namespace painlessmesh {
 namespace plugin {
@@ -34,14 +35,15 @@ class Stats {
 
   // Returns the mean and 95% interval based on 1.96*sd? or 2.96*sd
   TSTRING toString() const {
-#ifdef PAINLESSMESH_ENABLE_STD_STRING
+#ifdef PAINLESSMESH_DISABLE_STD_STRING
+
+    return TSTRING(mu) + TSTRING("[") + TSTRING(mu - 1.96 * sqrt(var)) +
+           TSTRING(",") + TSTRING(mu + 1.96 * sqrt(var)) + TSTRING("]");
+#else
     std::stringstream ss;
     ss << mu << "[" << mu - 1.96 * sqrt(var) << "," << mu + 1.96 * sqrt(var)
        << "]";
     return ss.str();
-#else
-    return TSTRING(mu) + TSTRING("[") + TSTRING(mu - 1.96 * sqrt(var)) +
-           TSTRING(",") + TSTRING(mu + 1.96 * sqrt(var)) + TSTRING("]");
 #endif
   }
 
@@ -64,27 +66,32 @@ class PerformancePackage : public plugin::BroadcastPackage {
 #endif
   PerformancePackage() : plugin::BroadcastPackage(13) {}
 
-  PerformancePackage(JsonObject jsonObj) : plugin::BroadcastPackage(jsonObj) {
-    id = jsonObj["id"];
-    time = jsonObj["time"];
-    stability = jsonObj["stability"];
-    freeMemory = jsonObj["freeMemory"];
-    hardware = jsonObj["hardware"].as<TSTRING>();
-  }
+  // PerformancePackage(JsonObject jsonObj) : plugin::BroadcastPackage(jsonObj)
+  // {
+  //   id = jsonObj["id"];
+  //   time = jsonObj["time"];
+  //   stability = jsonObj["stability"];
+  //   freeMemory = jsonObj["freeMemory"];
+  //   hardware = jsonObj["hardware"].as<TSTRING>();
+  // }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
-    jsonObj["type"] = type;
-    jsonObj["id"] = id;
-    jsonObj["time"] = time;
-    jsonObj["stability"] = stability;
-    jsonObj["freeMemory"] = freeMemory;
-    jsonObj["hardware"] = hardware;
-    return jsonObj;
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+  //   jsonObj["type"] = type;
+  //   jsonObj["id"] = id;
+  //   jsonObj["time"] = time;
+  //   jsonObj["stability"] = stability;
+  //   jsonObj["freeMemory"] = freeMemory;
+  //   jsonObj["hardware"] = hardware;
+  //   return jsonObj;
+  // }
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(4 + 5) + round(2 * (hardware.length()));
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(4 + 5) + round(2 * (hardware.length()));
+  // }
+  uint32_t size() override {
+    return plugin::BroadcastPackage::size() + hardware.length() +
+           sizeof(int) * 4;
   }
 };
 
@@ -104,38 +111,43 @@ class Track {
   uint32_t absent = 0;
   Track() {}
 
-  void addTo(JsonObject& jsonObj) const {
-    jsonObj["nodeId"] = nodeId;
-    jsonObj["hardware"] = hardware;
-    jsonObj["hits"] = hits;
-    jsonObj["misses"] = misses;
-    jsonObj["delay"] = delay.toString();
-    jsonObj["stability"] = stability.toString();
-    jsonObj["freeMemory"] = freeMemory.toString();
-    jsonObj["present"] = present;
-    jsonObj["absent"] = absent;
-  }
+  // void addTo(JsonObject& jsonObj) const {
+  //   jsonObj["nodeId"] = nodeId;
+  //   jsonObj["hardware"] = hardware;
+  //   jsonObj["hits"] = hits;
+  //   jsonObj["misses"] = misses;
+  //   jsonObj["delay"] = delay.toString();
+  //   jsonObj["stability"] = stability.toString();
+  //   jsonObj["freeMemory"] = freeMemory.toString();
+  //   jsonObj["present"] = present;
+  //   jsonObj["absent"] = absent;
+  // }
 };
 
 /// Holds resulst from all the nodes
 class TrackMap : public protocol::PackageInterface,
                  public std::map<uint32_t, Track> {
  public:
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj["event"] = "performance";
-    // Start array
-    auto jsonArr = jsonObj.createNestedArray("nodes");
-    // for each in map do
-    for (auto&& pair : (*this)) {
-      auto obj = jsonArr.createNestedObject();
-      pair.second.addTo(obj);
-    }
-    return jsonObj;
-  }  // namespace performance
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj["event"] = "performance";
+  //   // Start array
+  //   auto jsonArr = jsonObj.createNestedArray("nodes");
+  //   // for each in map do
+  //   for (auto&& pair : (*this)) {
+  //     auto obj = jsonArr.createNestedObject();
+  //     pair.second.addTo(obj);
+  //   }
+  //   return jsonObj;
+  // }  // namespace performance
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(2 + 15) + JSON_ARRAY_SIZE(this->size()) +
-           this->size()*(JSON_OBJECT_SIZE(9) + 4 * 100);
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(2 + 15) + JSON_ARRAY_SIZE(this->size()) +
+  //          this->size()*(JSON_OBJECT_SIZE(9) + 4 * 100);
+  // }
+
+  uint32_t size() override {
+    return protocol::PackageInterface::size() +
+           std::map<uint32_t, Track>::size();
   }
 };  // namespace plugin
 
@@ -170,7 +182,7 @@ void begin(T& mesh, double frequency = 2) {
   });
 
   sendPkg->from = mesh.getNodeId();
-  mesh.addTask(frequency*TASK_SECOND, TASK_FOREVER, [sendPkg, &mesh]() {
+  mesh.addTask(frequency * TASK_SECOND, TASK_FOREVER, [sendPkg, &mesh]() {
     ++sendPkg->id;
     sendPkg->time = mesh.getNodeTime();
     sendPkg->stability = mesh.stability;

@@ -26,7 +26,7 @@
 #include <ESPAsyncTCP.h>
 #endif // ESP32
 
-typedef String TSTRING;
+typedef std::string TSTRING;
 
 // backward compatibility
 template <typename T>

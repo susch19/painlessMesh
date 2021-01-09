@@ -40,34 +40,50 @@ class SinglePackage : public protocol::PackageInterface {
   uint32_t from;
   uint32_t dest;
   router::Type routing;
-  int noJsonFields = 4;
 
-  SinglePackage(Type type) : routing(router::SINGLE), PackageInterface(type) {}
+  SinglePackage()
+      : PackageInterface(protocol::SINGLE),
+        routing(router::SINGLE) {}
 
-  SinglePackage(JsonObject jsonObj) {
-    from = jsonObj["from"];
-    dest = jsonObj["dest"];
-    type = jsonObj["type"];
-    routing = static_cast<router::Type>(jsonObj["routing"].as<int>());
+  SinglePackage(uint16_t type)
+      : PackageInterface(type), routing(router::SINGLE) {}
+
+  uint32_t size() {
+    return PackageInterface::size() + sizeof(from) + sizeof(dest) +
+           sizeof(routing);
   }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj["from"] = from;
-    jsonObj["dest"] = dest;
-    jsonObj["routing"] = static_cast<int>(routing);
-    jsonObj["type"] = type;
-    return jsonObj;
-  }
+  // SinglePackage(JsonObject jsonObj) {
+  //   from = jsonObj["from"];
+  //   dest = jsonObj["dest"];
+  //   type = jsonObj["type"];
+  //   routing = static_cast<router::Type>(jsonObj["routing"].as<int>());
+  // }
+
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj["from"] = from;
+  //   jsonObj["dest"] = dest;
+  //   jsonObj["routing"] = static_cast<int>(routing);
+  //   jsonObj["type"] = type;
+  //   return jsonObj;
+  // }
 };
 
 class BroadcastPackage : public protocol::PackageInterface {
  public:
   uint32_t from;
   router::Type routing;
-  int type;
-  int noJsonFields = 3;
 
-  BroadcastPackage(Type type) : routing(router::BROADCAST), type(type) {}
+  BroadcastPackage()
+      : PackageInterface(protocol::BROADCAST),
+        routing(router::BROADCAST) {}
+
+  BroadcastPackage(uint16_t type)
+      : PackageInterface(type), routing(router::BROADCAST) {}
+
+  uint32_t size() override {
+    return PackageInterface::size() + sizeof(from) + sizeof(routing);
+  }
 
   // BroadcastPackage(JsonObject jsonObj) {
   //   from = jsonObj["from"];
@@ -85,10 +101,9 @@ class BroadcastPackage : public protocol::PackageInterface {
 
 class NeighbourPackage : public plugin::SinglePackage {
  public:
-  NeighbourPackage(int type) : SinglePackage(type) {
+  NeighbourPackage(protocol::Type type) : SinglePackage(type) {
     routing = router::NEIGHBOUR;
   }
-
 };
 
 /**

@@ -121,8 +121,9 @@ void MeshConnection::initTasks() {
   this->nodeSyncTask.set(
       TASK_MINUTE, TASK_FOREVER, [self = this->shared_from_this()]() {
         Log(SYNC, "nodeSyncTask(): request with %u\n", self->nodeId);
+        auto p = self->request(self->mesh->asNodeTree());
         router::send<protocol::NodeSyncRequest, MeshConnection>(
-            self->request(self->mesh->asNodeTree()), self);
+            p, self);
         self->timeOutTask.disable();
         self->timeOutTask.restartDelayed();
       });
@@ -206,7 +207,7 @@ void ICACHE_FLASH_ATTR MeshConnection::close() {
       this->station);
 }
 
-bool ICACHE_FLASH_ATTR MeshConnection::addMessage(TSTRING &message,
+bool ICACHE_FLASH_ATTR MeshConnection::addMessage(std::string &message,
                                                   bool priority) {
   if (ESP.getFreeHeap() - message.length() >=
       MIN_FREE_MEMORY) {  // If memory heap is enough, queue the message

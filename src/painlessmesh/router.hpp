@@ -35,7 +35,7 @@ std::shared_ptr<T> findRoute(layout::Layout<T> tree, uint32_t nodeId) {
 template <class T, class U>
 bool send(T& package, std::shared_ptr<U> conn, bool priority = false) {
   auto variant = painlessmesh::protocol::Variant<T>(package);
-  TSTRING msg;
+  std::string msg;
   variant.serializeTo(msg);
   return conn->addMessage(msg, priority);
 }
@@ -51,7 +51,7 @@ bool send(protocol::Variant<T>* variant, std::shared_ptr<U> conn,
 template <class T, class U>
 bool send(T& package, layout::Layout<U> layout) {
   auto variant = painlessmesh::protocol::Variant<T>(package);
-  TSTRING msg;
+  std::string msg;
   variant.serializeTo(msg);
   auto conn = findRoute<U>(layout, variant.dest);
   if (conn) return conn->addMessage(msg);
@@ -60,7 +60,7 @@ bool send(T& package, layout::Layout<U> layout) {
 
 template <class T, class U>
 bool send(protocol::Variant<T>* variant, layout::Layout<U> layout) {
-  TSTRING msg;
+  std::string msg;
   variant->serializeTo(msg);
   auto conn = findRoute<U>(layout, variant.dest());
   if (conn) return conn->addMessage(msg);
@@ -70,7 +70,7 @@ bool send(protocol::Variant<T>* variant, layout::Layout<U> layout) {
 template <class T, class U>
 size_t broadcast(T& package, layout::Layout<U> layout, uint32_t exclude) {
   auto variant = painlessmesh::protocol::Variant<T>(package);
-  TSTRING msg;
+  std::string msg;
   variant.serializeTo(msg);
   size_t i = 0;
   for (auto&& conn : layout.subs) {
@@ -85,9 +85,8 @@ size_t broadcast(T& package, layout::Layout<U> layout, uint32_t exclude) {
 template <class T>
 size_t broadcast(protocol::VariantBase* variant, layout::Layout<T> layout,
                  uint32_t exclude) {
-                   
-  TSTRING msg;
-  variant.serializeTo(msg);
+  std::string msg;
+  variant->serializeTo(msg);
   size_t i = 0;
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
@@ -145,7 +144,7 @@ void handleNodeSync(T& mesh, protocol::NodeTree* newTree,
                     std::shared_ptr<U> conn) {
   Log(logger::SYNC, "handleNodeSync(): with %u\n", conn->nodeId);
 
-  if (!conn->validSubs(newTree)) {
+  if (!conn->validSubs(*newTree)) {
     Log(logger::SYNC, "handleNodeSync(): invalid new connection\n");
     conn->close();
     return;
@@ -188,7 +187,7 @@ void handleNodeSync(T& mesh, protocol::NodeTree* newTree,
     conn->newConnection = false;
   }
 
-  if (conn->updateSubs(newTree)) {
+  if (conn->updateSubs(*newTree)) {
     mesh.addTask([&mesh, nodeId = newTree->nodeId]() {
       mesh.changedConnectionCallbacks.execute(nodeId);
     });
@@ -210,8 +209,8 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
             (protocol::Variant<protocol::NodeSyncRequest>*)variant;
         auto newTree = typedVariant->package;
         handleNodeSync<T, U>(mesh, newTree, connection);
-        send<protocol::NodeSyncReply>(
-            connection->reply(std::move(mesh.asNodeTree())), connection, true);
+        auto nodeTree = connection->reply(std::move(mesh.asNodeTree()));
+        send<protocol::NodeSyncReply>(nodeTree, connection, true);
         return false;
       });
 

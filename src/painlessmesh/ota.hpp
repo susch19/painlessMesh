@@ -1,3 +1,4 @@
+#define _PAINLESS_MESH_PLUGIN_OTA_HPP_
 #ifndef _PAINLESS_MESH_PLUGIN_OTA_HPP_
 #define _PAINLESS_MESH_PLUGIN_OTA_HPP_
 #pragma once
@@ -83,32 +84,32 @@ class AnnounceSingle : public SinglePackage {
 
   AnnounceSingle() : SinglePackage(10) {}
 
-  AnnounceSingle(JsonObject jsonObj) : SinglePackage(jsonObj) {
-    md5 = jsonObj["md5"].as<TSTRING>();
-    hardware = jsonObj["hardware"].as<TSTRING>();
-    role = jsonObj["role"].as<TSTRING>();
-    if (jsonObj.containsKey("forced")) forced = jsonObj["forced"];
-    noPart = jsonObj["noPart"];
-    from = jsonObj["from"];
-    dest = jsonObj["dest"];
-  }
+  // AnnounceSingle(JsonObject jsonObj) : SinglePackage(jsonObj) {
+  //   md5 = jsonObj["md5"].as<TSTRING>();
+  //   hardware = jsonObj["hardware"].as<TSTRING>();
+  //   role = jsonObj["role"].as<TSTRING>();
+  //   if (jsonObj.containsKey("forced")) forced = jsonObj["forced"];
+  //   noPart = jsonObj["noPart"];
+  //   from = jsonObj["from"];
+  //   dest = jsonObj["dest"];
+  // }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = SinglePackage::addTo(std::move(jsonObj));
-    jsonObj["md5"] = md5;
-    jsonObj["hardware"] = hardware;
-    jsonObj["role"] = role;
-    if (forced) jsonObj["forced"] = forced;
-    jsonObj["noPart"] = noPart;
-    jsonObj["from"] = from;
-    jsonObj["dest"] = dest;
-    return jsonObj;
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj = SinglePackage::addTo(std::move(jsonObj));
+  //   jsonObj["md5"] = md5;
+  //   jsonObj["hardware"] = hardware;
+  //   jsonObj["role"] = role;
+  //   if (forced) jsonObj["forced"] = forced;
+  //   jsonObj["noPart"] = noPart;
+  //   jsonObj["from"] = from;
+  //   jsonObj["dest"] = dest;
+  //   return jsonObj;
+  // }
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 5) +
-           round(1.1 * (md5.length() + hardware.length() + role.length()));
-  }
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(noJsonFields + 5) +
+  //          round(1.1 * (md5.length() + hardware.length() + role.length()));
+  // }
 
  protected:
   AnnounceSingle(int type, router::Type routing) : SinglePackage(type) {
@@ -151,28 +152,28 @@ class Announce : public BroadcastPackage {
 
   Announce() : BroadcastPackage(10) {}
 
-  Announce(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
-    md5 = jsonObj["md5"].as<TSTRING>();
-    hardware = jsonObj["hardware"].as<TSTRING>();
-    role = jsonObj["role"].as<TSTRING>();
-    if (jsonObj.containsKey("forced")) forced = jsonObj["forced"];
-    noPart = jsonObj["noPart"];
-  }
+  // Announce(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+  //   md5 = jsonObj["md5"].as<TSTRING>();
+  //   hardware = jsonObj["hardware"].as<TSTRING>();
+  //   role = jsonObj["role"].as<TSTRING>();
+  //   if (jsonObj.containsKey("forced")) forced = jsonObj["forced"];
+  //   noPart = jsonObj["noPart"];
+  // }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
-    jsonObj["md5"] = md5;
-    jsonObj["hardware"] = hardware;
-    jsonObj["role"] = role;
-    if (forced) jsonObj["forced"] = forced;
-    jsonObj["noPart"] = noPart;
-    return jsonObj;
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+  //   jsonObj["md5"] = md5;
+  //   jsonObj["hardware"] = hardware;
+  //   jsonObj["role"] = role;
+  //   if (forced) jsonObj["forced"] = forced;
+  //   jsonObj["noPart"] = noPart;
+  //   return jsonObj;
+  // }
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 5) +
-           round(1.1 * (md5.length() + hardware.length() + role.length()));
-  }
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(noJsonFields + 5) +
+  //          round(1.1 * (md5.length() + hardware.length() + role.length()));
+  // }
 
  protected:
   Announce(int type, router::Type routing) : BroadcastPackage(type) {
@@ -196,17 +197,17 @@ class DataRequest : public Announce {
 
   DataRequest() : Announce(11, router::SINGLE) {}
 
-  DataRequest(JsonObject jsonObj) : Announce(jsonObj) {
-    dest = jsonObj["dest"];
-    partNo = jsonObj["partNo"];
-  }
+  // DataRequest(JsonObject jsonObj) : Announce(jsonObj) {
+  //   dest = jsonObj["dest"];
+  //   partNo = jsonObj["partNo"];
+  // }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = Announce::addTo(std::move(jsonObj));
-    jsonObj["dest"] = dest;
-    jsonObj["partNo"] = partNo;
-    return jsonObj;
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj = Announce::addTo(std::move(jsonObj));
+  //   jsonObj["dest"] = dest;
+  //   jsonObj["partNo"] = partNo;
+  //   return jsonObj;
+  // }
 
   static DataRequest replyTo(const Announce& ann, uint32_t from,
                              size_t partNo) {
@@ -224,10 +225,10 @@ class DataRequest : public Announce {
 
   static DataRequest replyTo(const Data& d, size_t partNo);
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 5 + 2) +
-           round(1.1 * (md5.length() + hardware.length() + role.length()));
-  }
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(noJsonFields + 5 + 2) +
+  //          round(1.1 * (md5.length() + hardware.length() + role.length()));
+  // }
 
  protected:
   DataRequest(int type) : Announce(type, router::SINGLE) {}
@@ -243,15 +244,15 @@ class Data : public DataRequest {
 
   Data() : DataRequest(12) {}
 
-  Data(JsonObject jsonObj) : DataRequest(jsonObj) {
-    data = jsonObj["data"].as<TSTRING>();
-  }
+  // Data(JsonObject jsonObj) : DataRequest(jsonObj) {
+  //   data = jsonObj["data"].as<TSTRING>();
+  // }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = DataRequest::addTo(std::move(jsonObj));
-    jsonObj["data"] = data;
-    return jsonObj;
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj = DataRequest::addTo(std::move(jsonObj));
+  //   jsonObj["data"] = data;
+  //   return jsonObj;
+  // }
 
   static Data replyTo(const DataRequest& req, TSTRING data, size_t partNo) {
     Data d;
@@ -267,11 +268,11 @@ class Data : public DataRequest {
     return d;
   }
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 5 + 2 + 1) +
-           round(1.1 * (md5.length() + hardware.length() + role.length() +
-                        data.length()));
-  }
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(noJsonFields + 5 + 2 + 1) +
+  //          round(1.1 * (md5.length() + hardware.length() + role.length() +
+  //                       data.length()));
+  // }
 };
 
 inline DataRequest DataRequest::replyTo(const Data& d, size_t partNo) {
@@ -309,11 +310,11 @@ class State : public protocol::PackageInterface {
 
   State() {}
 
-  State(JsonObject jsonObj) {
-    md5 = jsonObj["md5"].as<TSTRING>();
-    hardware = jsonObj["hardware"].as<TSTRING>();
-    role = jsonObj["role"].as<TSTRING>();
-  }
+  // State(JsonObject jsonObj) {
+  //   md5 = jsonObj["md5"].as<TSTRING>();
+  //   hardware = jsonObj["hardware"].as<TSTRING>();
+  //   role = jsonObj["role"].as<TSTRING>();
+  // }
 
   State(const Announce& ann) {
     md5 = ann.md5;
@@ -322,17 +323,17 @@ class State : public protocol::PackageInterface {
     noPart = ann.noPart;
   }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj["role"] = role;
-    jsonObj["md5"] = md5;
-    jsonObj["hardware"] = hardware;
-    return jsonObj;
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj["role"] = role;
+  //   jsonObj["md5"] = md5;
+  //   jsonObj["hardware"] = hardware;
+  //   return jsonObj;
+  // }
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(3) +
-           round(1.1 * (md5.length() + hardware.length() + role.length()));
-  }
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(3) +
+  //          round(1.1 * (md5.length() + hardware.length() + role.length()));
+  // }
 
   std::shared_ptr<Task> task;
 };

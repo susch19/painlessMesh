@@ -95,9 +95,9 @@ void initTimeSync(protocol::NodeTree mesh, std::shared_ptr<T> connection,
 }
 
 template <class T, class U>
-void handleTimeSync(T& mesh, painlessmesh::protocol::TimeSync timeSync,
+void handleTimeSync(T& mesh, painlessmesh::protocol::TimeSync* timeSync,
                     std::shared_ptr<U> conn, uint32_t receivedAt) {
-  switch (timeSync.msg.type) {
+  switch (timeSync->msg.type) {
     case (painlessmesh::protocol::TIME_SYNC_ERROR):
       Log(logger::ERROR,
           "handleTimeSync(): Received time sync error. Restarting time "
@@ -110,13 +110,13 @@ void handleTimeSync(T& mesh, painlessmesh::protocol::TimeSync timeSync,
           "handleTimeSync(): Received requesto to start TimeSync with "
           "node: %u\n",
           conn->nodeId);
-      timeSync.reply(mesh.getNodeTime());
-      router::send<painlessmesh::protocol::TimeSync>(timeSync, conn, true);
+      timeSync->reply(mesh.getNodeTime());
+      router::send<painlessmesh::protocol::TimeSync>(*timeSync, conn, true);
       break;
 
     case (painlessmesh::protocol::TIME_REQUEST):
-      timeSync.reply(receivedAt, mesh.getNodeTime());
-      router::send<painlessmesh::protocol::TimeSync>(timeSync, conn, true);
+      timeSync->reply(receivedAt, mesh.getNodeTime());
+      router::send<painlessmesh::protocol::TimeSync>(*timeSync, conn, true);
 
       Log(logger::S_TIME,
           "handleTimeSync(): timeSyncStatus with %u completed\n", conn->nodeId);
@@ -130,7 +130,7 @@ void handleTimeSync(T& mesh, painlessmesh::protocol::TimeSync timeSync,
           "handleTimeSync(): %u adopting TIME_RESPONSE from %u\n", mesh.nodeId,
           conn->nodeId);
       int32_t offset = painlessmesh::ntp::clockOffset(
-          timeSync.msg.t0, timeSync.msg.t1, timeSync.msg.t2, receivedAt);
+          timeSync->msg.t0, timeSync->msg.t1, timeSync->msg.t2, receivedAt);
       mesh.timeOffset += offset;  // Accumulate offset
 
       // flag all connections for re-timeSync
@@ -165,19 +165,19 @@ void handleTimeSync(T& mesh, painlessmesh::protocol::TimeSync timeSync,
     }
     default:
       Log(logger::ERROR, "handleTimeSync(): unkown type %u, %u\n",
-          timeSync.msg.type, painlessmesh::protocol::TIME_SYNC_REQUEST);
+          timeSync->msg.type, painlessmesh::protocol::TIME_SYNC_REQUEST);
       break;
   }
   Log(logger::S_TIME, "handleTimeSync(): ----------------------------------\n");
 }
 
 template <class T, class U>
-void handleTimeDelay(T& mesh, painlessmesh::protocol::TimeDelay timeDelay,
+void handleTimeDelay(T& mesh, painlessmesh::protocol::TimeDelay* timeDelay,
                      std::shared_ptr<U> conn, uint32_t receivedAt) {
   Log(logger::S_TIME, "handleTimeDelay(): from %u in timestamp\n",
-      timeDelay.from);
+      timeDelay->from);
 
-  switch (timeDelay.msg.type) {
+  switch (timeDelay->msg.type) {
     case (painlessmesh::protocol::TIME_SYNC_ERROR):
       Log(logger::ERROR,
           "handleTimeDelay(): Error in requesting time delay. Please try "
@@ -189,20 +189,20 @@ void handleTimeDelay(T& mesh, painlessmesh::protocol::TimeDelay timeDelay,
       Log(logger::S_TIME, "handleTimeDelay(): TIME REQUEST received.\n");
 
       // Build time response
-      timeDelay.reply(receivedAt, mesh.getNodeTime());
-      router::send<protocol::TimeDelay, U>(timeDelay, conn);
+      timeDelay->reply(receivedAt, mesh.getNodeTime());
+      router::send<protocol::TimeDelay, U>(*timeDelay, conn);
       break;
 
     case (painlessmesh::protocol::TIME_REPLY): {
       Log(logger::S_TIME, "handleTimeDelay(): TIME RESPONSE received.\n");
       int32_t delay = painlessmesh::ntp::tripDelay(
-          timeDelay.msg.t0, timeDelay.msg.t1, timeDelay.msg.t2, receivedAt);
+          timeDelay->msg.t0, timeDelay->msg.t1, timeDelay->msg.t2, receivedAt);
       Log(logger::S_TIME, "handleTimeDelay(): Delay is %d\n", delay);
 
       // conn->timeSyncStatus == COMPLETE;
 
       if (mesh.nodeDelayReceivedCallback)
-        mesh.nodeDelayReceivedCallback(timeDelay.from, delay);
+        mesh.nodeDelayReceivedCallback(timeDelay->from, delay);
     } break;
 
     default:
@@ -222,8 +222,8 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
       protocol::TIME_SYNC,
       [&mesh](protocol::VariantBase* variant, std::shared_ptr<U> connection,
               uint32_t receivedAt) {
-        auto timeSync = variant.to<protocol::TimeSync>();
-        handleTimeSync<T, U>(mesh, timeSync, connection, receivedAt);
+        auto timeSync = static_cast<protocol::Variant<protocol::TimeSync>*>(variant);
+        handleTimeSync<T, U>(mesh, timeSync->package, connection, receivedAt);
         return false;
       });
 
@@ -232,8 +232,8 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
       protocol::TIME_DELAY,
       [&mesh](protocol::VariantBase* variant, std::shared_ptr<U> connection,
               uint32_t receivedAt) {
-        auto timeDelay = variant.to<protocol::TimeDelay>();
-        handleTimeDelay<T, U>(mesh, timeDelay, connection, receivedAt);
+        auto timeDelay = static_cast<protocol::Variant<protocol::TimeDelay>*>(variant);
+        handleTimeDelay<T, U>(mesh, timeDelay->package, connection, receivedAt);
         return false;
       });
 

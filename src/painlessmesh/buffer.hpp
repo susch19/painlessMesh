@@ -90,7 +90,7 @@ class ReceiveBuffer {
    * Helper function to deal with difference Arduino String
    * and std::string
    */
-  inline void stringAppend(T &buffer, T &newBuffer) { buffer.concat(newBuffer); };
+  inline void stringAppend(T &buffer, T &newBuffer) { buffer += newBuffer; };
 };
 
 #ifdef PAINLESSMESH_ENABLE_STD_STRING
@@ -203,7 +203,6 @@ class SentBuffer {
   inline void stringEraseFront(T &string, size_t length) { string.remove(0, length); };
 };
 
-#ifdef PAINLESSMESH_ENABLE_STD_STRING
 template <>
 inline void SentBuffer<std::string>::read(size_t length, temp_buffer_t &buf) {
   jsonStrings.front().copy(buf.buffer, length);
@@ -220,7 +219,6 @@ inline void SentBuffer<std::string>::stringEraseFront(std::string &string,
                                                size_t length) {
   string.erase(0, length);
 };
-#endif
 
 }  // namespace buffer
 }  // namespace painlessmesh

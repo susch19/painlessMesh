@@ -36,7 +36,7 @@ class Mesh : public painlessmesh::Mesh<MeshConnection> {
    * @param connectMode Switch between WIFI_AP, WIFI_STA and WIFI_AP_STA
    * (default) mode
    */
-  void init(TSTRING ssid, TSTRING password, uint16_t port = 5555,
+  void init(String ssid, String password, uint16_t port = 5555,
             WiFiMode_t connectMode = WIFI_AP_STA, uint8_t channel = 1,
             uint8_t hidden = 0, uint8_t maxconn = MAX_CONN) {
     using namespace logger;
@@ -101,7 +101,7 @@ class Mesh : public painlessmesh::Mesh<MeshConnection> {
    * @param connectMode Switch between WIFI_AP, WIFI_STA and WIFI_AP_STA
    * (default) mode
    */
-  void init(TSTRING ssid, TSTRING password, Scheduler *baseScheduler,
+  void init(String ssid, String password, Scheduler *baseScheduler,
             uint16_t port = 5555, WiFiMode_t connectMode = WIFI_AP_STA,
             uint8_t channel = 1, uint8_t hidden = 0,
             uint8_t maxconn = MAX_CONN) {
@@ -117,7 +117,7 @@ class Mesh : public painlessmesh::Mesh<MeshConnection> {
    * This stops the node from scanning for other (non specified) nodes
    * and you should probably also use this node as an anchor: `setAnchor(true)`
    */
-  void stationManual(TSTRING ssid, TSTRING password, uint16_t port = 0,
+  void stationManual(String ssid, String password, uint16_t port = 0,
                      IPAddress remote_ip = IPAddress(0, 0, 0, 0)) {
     // Set station config
     stationScan.manualIP = remote_ip;
@@ -220,8 +220,8 @@ class Mesh : public painlessmesh::Mesh<MeshConnection> {
 
  protected:
   friend class ::StationScan;
-  TSTRING _meshSSID;
-  TSTRING _meshPassword;
+  String _meshSSID;
+  String _meshPassword;
   uint8_t _meshChannel;
   uint8_t _meshHidden;
   uint8_t _meshMaxConn;

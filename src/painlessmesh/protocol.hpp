@@ -28,7 +28,8 @@ enum Type { ROUTING_ERROR = -1, NEIGHBOUR, SINGLE, BROADCAST };
 
 namespace protocol {
 
-enum Type : uint16_t {
+enum Type {
+  NONE = 0,
   TIME_DELAY = 3,
   TIME_SYNC = 4,
   NODE_SYNC_REQUEST = 5,
@@ -48,11 +49,11 @@ class PackageInterface {
  protected:
   uint16_t type;
   // uint32_t dest = 0;
-  PackageInterface(Type type) : type(type) {}
+  PackageInterface(uint16_t type) : type(type) {}
   // PackageInterface(Type type, uint32_t dest) : type(type), dest(dest) {}
 
  public:
-  virtual uint32_t size() = 0;
+  virtual uint32_t size() { return sizeof(type); };
   uint16_t packageType() { return type; }
 };
 
@@ -76,7 +77,8 @@ class Single : public PackageInterface {
   }
 
   uint32_t size() override {
-    return sizeof(type) + sizeof(from) + sizeof(dest) + msg.length();
+    return PackageInterface::size() + sizeof(from) + sizeof(dest) +
+           msg.length();
   }
 };
 
@@ -102,14 +104,12 @@ class NodeTree : public PackageInterface {
   bool root = false;
   std::list<NodeTree> subs;
 
-  NodeTree(Type type) : PackageInterface(type) {}
+  NodeTree(Type type = NONE) : PackageInterface(type) {}
 
-  NodeTree(uint32_t nodeID, bool iAmRoot, std::list<NodeTree> subsList,
-           Type type)
+  NodeTree(uint32_t nodeID, bool iAmRoot, Type type = NONE)
       : PackageInterface(type) {
     nodeId = nodeID;
     root = iAmRoot;
-    subs = subsList;
   }
 
   bool operator==(const NodeTree& b) const {
@@ -133,7 +133,8 @@ class NodeTree : public PackageInterface {
   TSTRING toString(bool pretty = false);
 
   uint32_t size() override {
-    return sizeof(nodeId) + sizeof(root) + subs.size();
+    return PackageInterface::size() + sizeof(nodeId) + sizeof(root) +
+           subs.size();
   }
 
   void clear() {
@@ -148,9 +149,9 @@ class NodeSync : public NodeTree {
   uint32_t from;
   uint32_t dest;
 
-  NodeSync(Type type) : NodeTree(type) {}
+  NodeSync(Type type = NONE) : NodeTree(type) {}
   NodeSync(uint32_t fromID, uint32_t destID, std::list<NodeTree> subTree,
-           bool iAmRoot, Type type)
+           bool iAmRoot = false, Type type = NONE)
       : NodeSync(type) {
     from = fromID;
     dest = destID;
@@ -263,7 +264,9 @@ class TimeSync : public PackageInterface {
     std::swap(from, dest);
   }
 
-  uint32_t size() override { return sizeof(dest) + sizeof(from) + sizeof(msg); }
+  uint32_t size() override {
+    return PackageInterface::size() + sizeof(dest) + sizeof(from) + sizeof(msg);
+  }
 };
 
 /**
@@ -307,7 +310,11 @@ struct get_routing<
   router::Type routing(T* package) { return package->routing; }
 };
 
-class VariantBase {};
+class VariantBase {
+ public:
+  virtual void serializeTo(std::string& str) {}
+  virtual void deserializeFrom(const std::string& str) {}
+};
 
 /**
  * Can store any package variant
@@ -316,7 +323,7 @@ class VariantBase {};
  * different packages from and to Json (using ArduinoJson).
  */
 template <typename T>
-class Variant : public VariantBase {
+class TypedVariantBase : public VariantBase {
  public:
   T* package;
   /**
@@ -325,7 +332,7 @@ class Variant : public VariantBase {
   // Variant(const PackageInterface* pkg) { package =
   // std::unique_ptr<PackageInterface>(pkg); }
 
-  Variant(T& single) { package = &single; }
+  TypedVariantBase(T& single) { package = &single; }
 
   /**
    * Whether this package is of the given type
@@ -357,14 +364,19 @@ class Variant : public VariantBase {
    *
    * @return A json representation of the string
    */
-  void serializeTo(std::string& str) {}
-  void deserializeFrom(const std::string& str) {}
+};
+
+template <class T>
+class Variant : public TypedVariantBase<T> {
+ public:
+  Variant(T& single) : TypedVariantBase<T>(single) {}
 };
 
 template <>
-class Variant<Single> {
-  void serializeTo(std::string& str) {}
-  void deserializeFrom(const std::string& str) {}
+class Variant<Single> : public TypedVariantBase<Single> {
+ public:
+  void serializeTo(std::string& str) override {}
+  void deserializeFrom(const std::string& str) override {}
 };
 
 // template <>
