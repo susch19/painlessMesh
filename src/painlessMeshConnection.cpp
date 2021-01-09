@@ -11,6 +11,7 @@
 
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
+#include "painlessmesh/base64.hpp"
 using namespace painlessmesh;
 
 //#include "lwip/priv/tcpip_priv.h"
@@ -256,7 +257,7 @@ bool ICACHE_FLASH_ATTR MeshConnection::writeNext() {
     if (written == len) {
       Log(COMMUNICATION, "writeNext(): Package sent\n");
       // Log(COMMUNICATION, "writeNext(): Package sent %s\n", data_ptr);
-      client->send();  // TODO only do this for priority messages
+      //client->send();  // TODO only do this for priority messages
       sentBuffer.freeRead();
       sentBufferTask.forceNextIteration();
       return true;

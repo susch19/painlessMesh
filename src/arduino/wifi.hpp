@@ -209,8 +209,14 @@ class Mesh : public painlessmesh::Mesh<MeshConnection> {
     painlessmesh::Mesh<MeshConnection>::stop();
 
     // Shutdown wifi hardware
-    if (WiFi.status() != WL_DISCONNECTED) WiFi.disconnect();
+    if (WiFi.status() != WL_DISCONNECTED) {
+      
+      WiFi.disconnect();
+    }
   }
+
+ public:
+  StationScan stationScan;
 
  protected:
   friend class ::StationScan;
@@ -222,7 +228,6 @@ class Mesh : public painlessmesh::Mesh<MeshConnection> {
   uint16_t _meshPort;
 
   IPAddress _apIp;
-  StationScan stationScan;
 
   void init(Scheduler *scheduler, uint32_t id) {
     painlessmesh::Mesh<MeshConnection>::init(scheduler, id);
@@ -231,7 +236,8 @@ class Mesh : public painlessmesh::Mesh<MeshConnection> {
   void init(uint32_t id) { painlessmesh::Mesh<MeshConnection>::init(id); }
 
   void apInit(uint32_t nodeId) {
-    _apIp = IPAddress(10, (nodeId & 0xFF00) >> 8, (nodeId & 0xFF), 1);
+    _apIp =
+        IPAddress(10, (nodeId & 0xFF00) >> 8, (nodeId & 0xFF), 1);
     IPAddress netmask(255, 255, 255, 0);
 
     WiFi.softAPConfig(_apIp, _apIp, netmask);
@@ -324,4 +330,3 @@ class Mesh : public painlessmesh::Mesh<MeshConnection> {
 #endif
 
 #endif
-

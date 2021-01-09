@@ -73,10 +73,46 @@ static const int B64index[256] =
     41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
 };
 
-
-
-inline const TSTRING decode(const void* data, const size_t &len)
+inline const std::string decodeStd(const void* data, const size_t &len, size_t& resLen)
 {
+    resLen = 0;
+    if (len == 0) return "";
+
+    unsigned char *p = (unsigned char*) data;
+    size_t j = 0,
+        pad1 = len % 4 || p[len - 1] == '=',
+        pad2 = pad1 && (len % 4 > 2 || p[len - 2] != '=');
+    const size_t last = (len - pad1) / 4 << 2;
+
+    std::string result(last / 4 * 3 + pad1 + pad2, '\0');
+
+    unsigned char *str = (unsigned char*) &result[0];
+
+    for (size_t i = 0; i < last; i += 4)
+    {
+        int n = B64index[p[i]] << 18 | B64index[p[i + 1]] << 12 | B64index[p[i + 2]] << 6 | B64index[p[i + 3]];
+        str[j++] = n >> 16;
+        str[j++] = n >> 8 & 0xFF;
+        str[j++] = n & 0xFF;
+    }
+    if (pad1)
+    {
+        int n = B64index[p[last]] << 18 | B64index[p[last + 1]] << 12;
+        str[j++] = n >> 16;
+        if (pad2)
+        {
+            n |= B64index[p[last + 2]] << 6;
+            str[j++] = n >> 8 & 0xFF;
+        }
+    }
+    resLen=j;
+    return result;
+}
+
+
+inline const TSTRING decode(const void* data, const size_t &len, size_t& resLen)
+{
+    resLen = 0;
     if (len == 0) return "";
 
     unsigned char *p = (unsigned char*) data;
@@ -111,12 +147,21 @@ inline const TSTRING decode(const void* data, const size_t &len)
             str[j++] = n >> 8 & 0xFF;
         }
     }
+    resLen=j;
     return result;
 }
 
+
 inline TSTRING decode(const TSTRING& str64)
 {
-    return decode(str64.c_str(), str64.length());
+    size_t tmp;
+    return decode(str64.c_str(), str64.length(), tmp);
+}
+
+
+inline std::string decodeStd(const TSTRING& str64, size_t& resLen)
+{
+    return decodeStd(str64.c_str(), str64.length(), resLen);
 }
 }
 }
