@@ -38,6 +38,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     xSemaphore = xSemaphoreCreateMutex();
 #endif
 
+    mScheduler->enableAll();
+
     // Add package handlers
     this->callbackList = painlessmesh::ntp::addPackageCallback(
         std::move(this->callbackList), (*this));
@@ -65,6 +67,12 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
 
 #ifdef PAINLESSMESH_ENABLE_OTA
   std::shared_ptr<Task> offerOTA(painlessmesh::plugin::ota::Announce announce){
+    auto announceTask = 
+            this->addTask(TASK_SECOND*60,60,[this, announce]() {this->sendPackage(&announce); });
+    return announceTask;
+  }
+
+    std::shared_ptr<Task> offerOTA(painlessmesh::plugin::ota::AnnounceSingle announce){
     auto announceTask = 
             this->addTask(TASK_SECOND*60,60,[this, announce]() {this->sendPackage(&announce); });
     return announceTask;
@@ -174,7 +182,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     Log(COMMUNICATION, "sendBroadcast(): msg=%s\n", msg.c_str());
     auto pkg = painlessmesh::protocol::Broadcast(this->nodeId, 0, msg);
     auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
-    if (includeSelf) {
+    if (success && includeSelf) {
+      auto variant = protocol::Variant(pkg);
       this->callbackList.execute(pkg.type, pkg, NULL, 0);
     }
     if (success > 0) return true;

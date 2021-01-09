@@ -71,7 +71,7 @@ class LogClass {
       va_list args;
       va_start(args, format);
 
-      vsnprintf(str, 200, format, args);
+      vsnprintf(str, 600, format, args);
 
       if (types) {
         switch (type) {
@@ -122,7 +122,7 @@ class LogClass {
 
  private:
   uint16_t types = 0;
-  char str[200];
+  char str[600];
 };
 
 }  // namespace logger

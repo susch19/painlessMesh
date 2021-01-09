@@ -1,5 +1,6 @@
 #ifndef _PAINLESS_MESH_PLUGIN_OTA_HPP_
 #define _PAINLESS_MESH_PLUGIN_OTA_HPP_
+#pragma once
 
 #include "painlessmesh/configuration.hpp"
 
@@ -9,14 +10,13 @@
 
 #if defined(ESP32) || defined(ESP8266)
 #ifdef ESP32
-#include <SPIFFS.h>
+#include <LITTLEFS.h>
 #include <Update.h>
+static fs::LITTLEFSFS LittleFS = LITTLEFS;
 #else
-#include <FS.h>
+#include <LittleFS.h>
 #endif
 #endif
-
-
 
 namespace painlessmesh {
 namespace plugin {
@@ -45,6 +45,76 @@ namespace plugin {
  * has all the data, written it and reboots into the new firmware.
  */
 namespace ota {
+
+/** Package used by the firmware distribution node to announce new version
+ * available
+ *
+ * This is based on the general BroadcastPackage to ensure it is being
+ * broadcasted. It is possible to define a Announce::role, which defines the
+ * node role the firmware is meant for.
+ *
+ * The package type/identifier is set to 10.
+ */
+class AnnounceSingle : public SinglePackage {
+ public:
+  TSTRING md5;
+  TSTRING hardware;
+
+  /**
+   * \brief The type of node the firmware is meant for
+   *
+   * Nodes can fulfill different roles, which require specific firmware. E.g a
+   * node can be a sensor and therefore needs the firmware meant for sensor
+   * nodes. This allows one to set the type of node (role) this firmware is
+   * aimed at.
+   *
+   * Note that the role should not contain underscores or dots.
+   */
+  TSTRING role;
+
+  /** Force an update even if the node already has this firmware version
+   *
+   * Mainly usefull when testing updates etc.
+   */
+  bool forced = false;
+  size_t noPart;
+  uint32_t from;
+  uint32_t dest;
+
+  AnnounceSingle() : SinglePackage(10) {}
+
+  AnnounceSingle(JsonObject jsonObj) : SinglePackage(jsonObj) {
+    md5 = jsonObj["md5"].as<TSTRING>();
+    hardware = jsonObj["hardware"].as<TSTRING>();
+    role = jsonObj["role"].as<TSTRING>();
+    if (jsonObj.containsKey("forced")) forced = jsonObj["forced"];
+    noPart = jsonObj["noPart"];
+    from = jsonObj["from"];
+    dest = jsonObj["dest"];
+  }
+
+  JsonObject addTo(JsonObject&& jsonObj) const {
+    jsonObj = SinglePackage::addTo(std::move(jsonObj));
+    jsonObj["md5"] = md5;
+    jsonObj["hardware"] = hardware;
+    jsonObj["role"] = role;
+    if (forced) jsonObj["forced"] = forced;
+    jsonObj["noPart"] = noPart;
+    jsonObj["from"] = from;
+    jsonObj["dest"] = dest;
+    return jsonObj;
+  }
+
+  size_t jsonObjectSize() const {
+    return JSON_OBJECT_SIZE(noJsonFields + 5) +
+           round(1.1 * (md5.length() + hardware.length() + role.length()));
+  }
+
+ protected:
+  AnnounceSingle(int type, router::Type routing) : SinglePackage(type) {
+    this->routing = routing;
+  }
+};
 
 /** Package used by the firmware distribution node to announce new version
  * available
@@ -267,37 +337,44 @@ class State : public protocol::PackageInterface {
   std::shared_ptr<Task> task;
 };
 
-typedef std::function<size_t(painlessmesh::plugin::ota::DataRequest, char* buffer)> otaDataPacketCallbackType_t;
+typedef std::function<size_t(painlessmesh::plugin::ota::DataRequest,
+                             char* buffer)>
+    otaDataPacketCallbackType_t;
 
 template <class T>
-void addSendPackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& mesh,
-                        otaDataPacketCallbackType_t callback,size_t otaPartSize){
-    using namespace logger;
-    #if defined(ESP32) || defined(ESP8266)
+void addSendPackageCallback(Scheduler& scheduler,
+                            plugin::PackageHandler<T>& mesh,
+                            otaDataPacketCallbackType_t callback,
+                            size_t otaPartSize) {
+  using namespace logger;
+#if defined(ESP32) || defined(ESP8266)
 
-    mesh.onPackage(11,[&mesh,callback,otaPartSize](painlessmesh::protocol::Variant variant){
-      
-      auto pkg = variant.to<painlessmesh::plugin::ota::DataRequest>();
-      char buffer[otaPartSize+1] = {0};
-      auto size = callback(pkg,buffer);
-      
-      //Encode data as base64 so there are no null characters and can be shown in plaintext
-      auto b64Data = painlessmesh::base64::encode((unsigned char * )buffer,size);
-      auto reply =
-              painlessmesh::plugin::ota::Data::replyTo(pkg,
-                                b64Data,
-                                 pkg.partNo);
-      mesh.sendPackage(&reply);
-      return true;
-    });
+  mesh.onPackage(11, [&mesh, callback,
+                      otaPartSize](painlessmesh::protocol::Variant variant) {
+    auto pkg = variant.to<painlessmesh::plugin::ota::DataRequest>();
+    char buffer[otaPartSize + 1];
+    memset(buffer, 0, (otaPartSize + 1) * sizeof(char));
+    auto size = callback(pkg, buffer);
+    if (size < 1) return false;
+    // Encode data as base64 so there are no null characters and can be shown in
+    // plaintext
+    auto b64Data = painlessmesh::base64::encode((unsigned char*)buffer, size);
+    auto reply =
+        painlessmesh::plugin::ota::Data::replyTo(pkg, b64Data, pkg.partNo);
 
-    #endif
+    Serial.printf("Send Ota Package %zu, %d, ", reply.dest, reply.partNo);
+    Serial.println(reply.role);
+    mesh.sendPackage(&reply);
+    return true;
+  });
+
+#endif
 }
 
-
 template <class T>
-void addReceivePackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& mesh,
-                        TSTRING role = "") {
+void addReceivePackageCallback(Scheduler& scheduler,
+                               plugin::PackageHandler<T>& mesh,
+                               TSTRING role = "") {
   using namespace logger;
 #if defined(ESP32) || defined(ESP8266)
   auto currentFW = std::make_shared<State>();
@@ -305,12 +382,12 @@ void addReceivePackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& 
   auto updateFW = std::make_shared<State>();
   updateFW->role = role;
 #ifdef ESP32
-  SPIFFS.begin(true);  // Start the SPI Flash Files System
+  LittleFS.begin(true);  // Start the SPI Flash Files System
 #else
-  SPIFFS.begin();  // Start the SPI Flash Files System
+  LittleFS.begin();  // Start the SPI Flash Files System
 #endif
-  if (SPIFFS.exists(currentFW->ota_fn)) {
-    auto file = SPIFFS.open(currentFW->ota_fn, "r");
+  if (LittleFS.exists(currentFW->ota_fn)) {
+    auto file = LittleFS.open(currentFW->ota_fn, "r");
     TSTRING msg = "";
     while (file.available()) {
       msg += (char)file.read();
@@ -334,7 +411,8 @@ void addReceivePackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& 
         // Either already have it, or already updating to it
         return false;
       else {
-        auto request = DataRequest::replyTo(pkg, mesh.getNodeId(), updateFW->partNo);
+        auto request =
+            DataRequest::replyTo(pkg, mesh.getNodeId(), updateFW->partNo);
         updateFW->md5 = pkg.md5;
         // enable the request task
         updateFW->task =
@@ -398,7 +476,7 @@ void addReceivePackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& 
         //       check md5, reboot
         if (Update.end(true)) {  // true to set the size to the
                                  // current progress
-          auto file = SPIFFS.open(updateFW->ota_fn, "w");
+          auto file = LittleFS.open(updateFW->ota_fn, "w");
           String msg;
           auto var = protocol::Variant(updateFW.get());
           var.printTo(msg);
@@ -422,7 +500,7 @@ void addReceivePackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& 
         auto request = DataRequest::replyTo(pkg, updateFW->partNo);
         updateFW->task->setCallback(
             [request, &mesh]() { mesh.sendPackage(&request); });
-        //updateFW->task->disable();
+        // updateFW->task->disable();
         updateFW->task->restart();
       }
     }
@@ -436,4 +514,3 @@ void addReceivePackageCallback(Scheduler& scheduler, plugin::PackageHandler<T>& 
 }  // namespace painlessmesh
 
 #endif
-
