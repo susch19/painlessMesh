@@ -40,10 +40,9 @@ class SinglePackage : public protocol::PackageInterface {
   uint32_t from;
   uint32_t dest;
   router::Type routing;
-  int type;
   int noJsonFields = 4;
 
-  SinglePackage(int type) : routing(router::SINGLE), type(type) {}
+  SinglePackage(Type type) : routing(router::SINGLE), PackageInterface(type) {}
 
   SinglePackage(JsonObject jsonObj) {
     from = jsonObj["from"];
@@ -68,20 +67,20 @@ class BroadcastPackage : public protocol::PackageInterface {
   int type;
   int noJsonFields = 3;
 
-  BroadcastPackage(int type) : routing(router::BROADCAST), type(type) {}
+  BroadcastPackage(Type type) : routing(router::BROADCAST), type(type) {}
 
-  BroadcastPackage(JsonObject jsonObj) {
-    from = jsonObj["from"];
-    type = jsonObj["type"];
-    routing = static_cast<router::Type>(jsonObj["routing"].as<int>());
-  }
+  // BroadcastPackage(JsonObject jsonObj) {
+  //   from = jsonObj["from"];
+  //   type = jsonObj["type"];
+  //   routing = static_cast<router::Type>(jsonObj["routing"].as<int>());
+  // }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj["from"] = from;
-    jsonObj["routing"] = static_cast<int>(routing);
-    jsonObj["type"] = type;
-    return jsonObj;
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj["from"] = from;
+  //   jsonObj["routing"] = static_cast<int>(routing);
+  //   jsonObj["type"] = type;
+  //   return jsonObj;
+  // }
 };
 
 class NeighbourPackage : public plugin::SinglePackage {
@@ -90,7 +89,6 @@ class NeighbourPackage : public plugin::SinglePackage {
     routing = router::NEIGHBOUR;
   }
 
-  NeighbourPackage(JsonObject jsonObj) : SinglePackage(jsonObj) {}
 };
 
 /**
@@ -119,8 +117,9 @@ class PackageHandler : public layout::Layout<T> {
           "before calling this destructor");
   }
 
-  bool sendPackage(const protocol::PackageInterface* pkg) {
-    auto variant = protocol::Variant(pkg);
+  template <typename P>
+  bool sendPackage(const P* pkg) {
+    auto variant = protocol::Variant<P>(pkg);
     // if single or neighbour with direction
     if (variant.routing() == router::SINGLE ||
         (variant.routing() == router::NEIGHBOUR && variant.dest() != 0)) {
@@ -137,8 +136,9 @@ class PackageHandler : public layout::Layout<T> {
     return false;
   }
 
-  void onPackage(int type, std::function<bool(protocol::Variant)> function) {
-    auto func = [function](protocol::Variant var, std::shared_ptr<T>,
+  void onPackage(int type,
+                 std::function<bool(protocol::VariantBase*)> function) {
+    auto func = [function](protocol::VariantBase* var, std::shared_ptr<T>,
                            uint32_t) { return function(var); };
     this->callbackList.onPackage(type, func);
   }
@@ -184,4 +184,3 @@ class PackageHandler : public layout::Layout<T> {
 }  // namespace plugin
 }  // namespace painlessmesh
 #endif
-

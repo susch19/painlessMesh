@@ -9,11 +9,6 @@
 
 #include <TaskSchedulerDeclarations.h>
 
-#define ARDUINOJSON_USE_LONG_LONG 1
-#undef ARDUINOJSON_ENABLE_STD_STRING
-#include <ArduinoJson.h>
-#undef ARDUINOJSON_ENABLE_STD_STRING
-
 // Enable (arduino) wifi support
 #define PAINLESSMESH_ENABLE_ARDUINO_WIFI
 

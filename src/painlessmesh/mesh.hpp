@@ -183,7 +183,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     auto pkg = painlessmesh::protocol::Broadcast(this->nodeId, 0, msg);
     auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
     if (success && includeSelf) {
-      auto variant = protocol::Variant(pkg);
+      auto variant = protocol::Variant<painlessMesh::protocol::Broadcast>(pkg);
       this->callbackList.execute(pkg.type, pkg, NULL, 0);
     }
     if (success > 0) return true;
@@ -224,14 +224,14 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     using namespace painlessmesh;
     this->callbackList.onPackage(
         protocol::SINGLE,
-        [onReceive](protocol::Variant variant, std::shared_ptr<T>, uint32_t) {
+        [onReceive](protocol::VariantBase* variant, std::shared_ptr<T>, uint32_t) {
           auto pkg = variant.to<protocol::Single>();
           onReceive(pkg.from, pkg.msg);
           return false;
         });
     this->callbackList.onPackage(
         protocol::BROADCAST,
-        [onReceive](protocol::Variant variant, std::shared_ptr<T>, uint32_t) {
+        [onReceive](protocol::VariantBase* variant, std::shared_ptr<T>, uint32_t) {
           auto pkg = variant.to<protocol::Broadcast>();
           onReceive(pkg.from, pkg.msg);
           return false;

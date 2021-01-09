@@ -220,7 +220,7 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
   // TimeSync
   callbackList.onPackage(
       protocol::TIME_SYNC,
-      [&mesh](protocol::Variant variant, std::shared_ptr<U> connection,
+      [&mesh](protocol::VariantBase* variant, std::shared_ptr<U> connection,
               uint32_t receivedAt) {
         auto timeSync = variant.to<protocol::TimeSync>();
         handleTimeSync<T, U>(mesh, timeSync, connection, receivedAt);
@@ -230,7 +230,7 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
   // TimeDelay
   callbackList.onPackage(
       protocol::TIME_DELAY,
-      [&mesh](protocol::Variant variant, std::shared_ptr<U> connection,
+      [&mesh](protocol::VariantBase* variant, std::shared_ptr<U> connection,
               uint32_t receivedAt) {
         auto timeDelay = variant.to<protocol::TimeDelay>();
         handleTimeDelay<T, U>(mesh, timeDelay, connection, receivedAt);

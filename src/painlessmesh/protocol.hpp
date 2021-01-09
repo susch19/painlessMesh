@@ -2,7 +2,9 @@
 #define _PAINLESS_MESH_PROTOCOL_HPP_
 
 #include <cmath>
+#include <functional>
 #include <list>
+#include <unordered_map>
 
 #include "Arduino.h"
 #include "painlessmesh/configuration.hpp"
@@ -26,14 +28,13 @@ enum Type { ROUTING_ERROR = -1, NEIGHBOUR, SINGLE, BROADCAST };
 
 namespace protocol {
 
-enum Type {
+enum Type : uint16_t {
   TIME_DELAY = 3,
   TIME_SYNC = 4,
   NODE_SYNC_REQUEST = 5,
   NODE_SYNC_REPLY = 6,
-  CONTROL = 7,    // deprecated
   BROADCAST = 8,  // application data for everyone
-  SINGLE = 9      // application data for a single node
+  SINGLE = 9      // application data for a single node,
 };
 
 enum TimeType {
@@ -44,9 +45,15 @@ enum TimeType {
 };
 
 class PackageInterface {
+ protected:
+  uint16_t type;
+  // uint32_t dest = 0;
+  PackageInterface(Type type) : type(type) {}
+  // PackageInterface(Type type, uint32_t dest) : type(type), dest(dest) {}
+
  public:
-  virtual JsonObject addTo(JsonObject&& jsonObj) const = 0;
-  virtual size_t jsonObjectSize() const = 0;
+  virtual uint32_t size() = 0;
+  uint16_t packageType() { return type; }
 };
 
 /**
@@ -56,34 +63,20 @@ class PackageInterface {
  */
 class Single : public PackageInterface {
  public:
-  int type = SINGLE;
-  uint32_t from;
   uint32_t dest;
-  TSTRING msg = "";
+  uint32_t from;
+  std::string msg = "";
 
-  Single() {}
-  Single(uint32_t fromID, uint32_t destID, TSTRING& message) {
+  Single() : PackageInterface(SINGLE) {}
+
+  Single(uint32_t fromID, uint32_t destID, std::string& message)
+      : PackageInterface(SINGLE) {
     from = fromID;
-    dest = destID;
     msg = message;
   }
 
-  Single(JsonObject jsonObj) {
-    dest = jsonObj["dest"].as<uint32_t>();
-    from = jsonObj["from"].as<uint32_t>();
-    msg = jsonObj["msg"].as<TSTRING>();
-  }
-
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj["type"] = type;
-    jsonObj["dest"] = dest;
-    jsonObj["from"] = from;
-    jsonObj["msg"] = msg;
-    return jsonObj;
-  }
-
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(4) + ceil(1.1 * msg.length());
+  uint32_t size() override {
+    return sizeof(type) + sizeof(from) + sizeof(dest) + msg.length();
   }
 };
 
@@ -92,18 +85,14 @@ class Single : public PackageInterface {
  */
 class Broadcast : public Single {
  public:
-  int type = BROADCAST;
-
   using Single::Single;
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = Single::addTo(std::move(jsonObj));
-    jsonObj["type"] = type;
-    return jsonObj;
-  }
+  Broadcast() { type = BROADCAST; }
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(4) + ceil(1.1 * msg.length());
+  Broadcast(uint32_t fromID, std::string& message) : Broadcast() {
+    from = fromID;
+    dest = 0;
+    msg = message;
   }
 };
 
@@ -113,39 +102,14 @@ class NodeTree : public PackageInterface {
   bool root = false;
   std::list<NodeTree> subs;
 
-  NodeTree() {}
+  NodeTree(Type type) : PackageInterface(type) {}
 
-  NodeTree(uint32_t nodeID, bool iAmRoot) {
+  NodeTree(uint32_t nodeID, bool iAmRoot, std::list<NodeTree> subsList,
+           Type type)
+      : PackageInterface(type) {
     nodeId = nodeID;
     root = iAmRoot;
-  }
-
-  NodeTree(JsonObject jsonObj) {
-    if (jsonObj.containsKey("root")) root = jsonObj["root"].as<bool>();
-    if (jsonObj.containsKey("nodeId"))
-      nodeId = jsonObj["nodeId"].as<uint32_t>();
-    else
-      nodeId = jsonObj["from"].as<uint32_t>();
-
-    if (jsonObj.containsKey("subs")) {
-      auto jsonArr = jsonObj["subs"].as<JsonArray>();
-      for (size_t i = 0; i < jsonArr.size(); ++i) {
-        subs.push_back(NodeTree(jsonArr[i].as<JsonObject>()));
-      }
-    }
-  }
-
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj["nodeId"] = nodeId;
-    if (root) jsonObj["root"] = root;
-    if (subs.size() > 0) {
-      JsonArray subsArr = jsonObj.createNestedArray("subs");
-      for (auto&& s : subs) {
-        JsonObject subObj = subsArr.createNestedObject();
-        subObj = s.addTo(std::move(subObj));
-      }
-    }
-    return jsonObj;
+    subs = subsList;
   }
 
   bool operator==(const NodeTree& b) const {
@@ -168,14 +132,8 @@ class NodeTree : public PackageInterface {
 
   TSTRING toString(bool pretty = false);
 
-  size_t jsonObjectSize() const {
-    size_t base = 1;
-    if (root) ++base;
-    if (subs.size() > 0) ++base;
-    size_t size = JSON_OBJECT_SIZE(base);
-    if (subs.size() > 0) size += JSON_ARRAY_SIZE(subs.size());
-    for (auto&& s : subs) size += s.jsonObjectSize();
-    return size;
+  uint32_t size() override {
+    return sizeof(nodeId) + sizeof(root) + subs.size();
   }
 
   void clear() {
@@ -185,18 +143,15 @@ class NodeTree : public PackageInterface {
   }
 };
 
-/**
- * NodeSyncRequest package
- */
-class NodeSyncRequest : public NodeTree {
+class NodeSync : public NodeTree {
  public:
-  int type = NODE_SYNC_REQUEST;
   uint32_t from;
   uint32_t dest;
 
-  NodeSyncRequest() {}
-  NodeSyncRequest(uint32_t fromID, uint32_t destID, std::list<NodeTree> subTree,
-                  bool iAmRoot = false) {
+  NodeSync(Type type) : NodeTree(type) {}
+  NodeSync(uint32_t fromID, uint32_t destID, std::list<NodeTree> subTree,
+           bool iAmRoot, Type type)
+      : NodeSync(type) {
     from = fromID;
     dest = destID;
     subs = subTree;
@@ -204,53 +159,38 @@ class NodeSyncRequest : public NodeTree {
     root = iAmRoot;
   }
 
-  NodeSyncRequest(JsonObject jsonObj) : NodeTree(jsonObj) {
-    dest = jsonObj["dest"].as<uint32_t>();
-    from = jsonObj["from"].as<uint32_t>();
-  }
-
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = NodeTree::addTo(std::move(jsonObj));
-    jsonObj["type"] = type;
-    jsonObj["dest"] = dest;
-    jsonObj["from"] = from;
-    return jsonObj;
-  }
-
-  bool operator==(const NodeSyncRequest& b) const {
+  bool operator==(const NodeSync& b) const {
     if (!(this->from == b.from && this->dest == b.dest)) return false;
     return NodeTree::operator==(b);
   }
 
-  bool operator!=(const NodeSyncRequest& b) const {
-    return !this->operator==(b);
-  }
+  bool operator!=(const NodeSync& b) const { return !this->operator==(b); }
 
-  size_t jsonObjectSize() const {
-    size_t base = 4;
-    if (root) ++base;
-    if (subs.size() > 0) ++base;
-    size_t size = JSON_OBJECT_SIZE(base);
-    if (subs.size() > 0) size += JSON_ARRAY_SIZE(subs.size());
-    for (auto&& s : subs) size += s.jsonObjectSize();
-    return size;
+  uint32_t size() override {
+    return NodeTree::size() + sizeof(from) + sizeof(dest);
   }
+};
+
+/**
+ * NodeSyncRequest package
+ */
+class NodeSyncRequest : public NodeSync {
+ public:
+  NodeSyncRequest() : NodeSync(NODE_SYNC_REQUEST) {}
+  NodeSyncRequest(uint32_t fromID, uint32_t destID, std::list<NodeTree> subTree,
+                  bool iAmRoot = false)
+      : NodeSync(fromID, destID, subTree, iAmRoot, NODE_SYNC_REQUEST) {}
 };
 
 /**
  * NodeSyncReply package
  */
-class NodeSyncReply : public NodeSyncRequest {
+class NodeSyncReply : public NodeSync {
  public:
-  int type = NODE_SYNC_REPLY;
-
-  using NodeSyncRequest::NodeSyncRequest;
-
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = NodeSyncRequest::addTo(std::move(jsonObj));
-    jsonObj["type"] = type;
-    return jsonObj;
-  }
+  NodeSyncReply() : NodeSync(NODE_SYNC_REPLY) {}
+  NodeSyncReply(uint32_t fromID, uint32_t destID, std::list<NodeTree> subTree,
+                bool iAmRoot = false)
+      : NodeSync(fromID, destID, subTree, iAmRoot, NODE_SYNC_REPLY) {}
 };
 
 struct time_sync_msg_t {
@@ -258,34 +198,34 @@ struct time_sync_msg_t {
   uint32_t t0 = 0;
   uint32_t t1 = 0;
   uint32_t t2 = 0;
-};
+} __attribute__((packed));
 
 /**
  * TimeSync package
  */
 class TimeSync : public PackageInterface {
  public:
-  int type = TIME_SYNC;
   uint32_t dest;
   uint32_t from;
   time_sync_msg_t msg;
 
-  TimeSync() {}
+  TimeSync() : PackageInterface(TIME_SYNC) {}
 
-  TimeSync(uint32_t fromID, uint32_t destID) {
+  TimeSync(uint32_t fromID, uint32_t destID) : TimeSync() {
     from = fromID;
     dest = destID;
     msg.type = TIME_SYNC_REQUEST;
   }
 
-  TimeSync(uint32_t fromID, uint32_t destID, uint32_t t0) {
+  TimeSync(uint32_t fromID, uint32_t destID, uint32_t t0) : TimeSync() {
     from = fromID;
     dest = destID;
     msg.type = TIME_REQUEST;
     msg.t0 = t0;
   }
 
-  TimeSync(uint32_t fromID, uint32_t destID, uint32_t t0, uint32_t t1) {
+  TimeSync(uint32_t fromID, uint32_t destID, uint32_t t0, uint32_t t1)
+      : TimeSync() {
     from = fromID;
     dest = destID;
     msg.type = TIME_REPLY;
@@ -294,39 +234,14 @@ class TimeSync : public PackageInterface {
   }
 
   TimeSync(uint32_t fromID, uint32_t destID, uint32_t t0, uint32_t t1,
-           uint32_t t2) {
+           uint32_t t2)
+      : TimeSync() {
     from = fromID;
     dest = destID;
     msg.type = TIME_REPLY;
     msg.t0 = t0;
     msg.t1 = t1;
     msg.t2 = t2;
-  }
-
-  TimeSync(JsonObject jsonObj) {
-    dest = jsonObj["dest"].as<uint32_t>();
-    from = jsonObj["from"].as<uint32_t>();
-    msg.type = jsonObj["msg"]["type"].as<int>();
-    if (jsonObj["msg"].containsKey("t0"))
-      msg.t0 = jsonObj["msg"]["t0"].as<uint32_t>();
-    if (jsonObj["msg"].containsKey("t1"))
-      msg.t1 = jsonObj["msg"]["t1"].as<uint32_t>();
-    if (jsonObj["msg"].containsKey("t2"))
-      msg.t2 = jsonObj["msg"]["t2"].as<uint32_t>();
-  }
-
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj["type"] = type;
-    jsonObj["dest"] = dest;
-    jsonObj["from"] = from;
-    auto msgObj = jsonObj.createNestedObject("msg");
-    msgObj["type"] = msg.type;
-    if (msg.type >= 1) msgObj["t0"] = msg.t0;
-    if (msg.type >= 2) {
-      msgObj["t1"] = msg.t1;
-      msgObj["t2"] = msg.t2;
-    }
-    return jsonObj;
   }
 
   /**
@@ -348,9 +263,7 @@ class TimeSync : public PackageInterface {
     std::swap(from, dest);
   }
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(4);
-  }
+  uint32_t size() override { return sizeof(dest) + sizeof(from) + sizeof(msg); }
 };
 
 /**
@@ -360,184 +273,24 @@ class TimeDelay : public TimeSync {
  public:
   int type = TIME_DELAY;
   using TimeSync::TimeSync;
-
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = TimeSync::addTo(std::move(jsonObj));
-    jsonObj["type"] = type;
-    return jsonObj;
-  }
 };
 
-/**
- * Can store any package variant
- *
- * Internally stores packages as a JsonObject. Main use case is to convert
- * different packages from and to Json (using ArduinoJson).
- */
-class Variant {
- public:
-#ifdef ARDUINOJSON_ENABLE_STD_STRING
-  /**
-   * Create Variant object from a json string
-   *
-   * @param json The json string containing a package
-   */
-  Variant(std::string json)
-      : jsonBuffer(JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(4) +
-                   2 * json.length()) {
-    error = deserializeJson(jsonBuffer, json,
-                            DeserializationOption::NestingLimit(255));
-    if (!error) jsonObj = jsonBuffer.as<JsonObject>();
-  }
+template <class T, typename = void>
+struct get_dest {
+  uint32_t dest(T* package) { return 0; }
+};
 
-  /**
-   * Create Variant object from a json string
-   *
-   * @param json The json string containing a package
-   * @param capacity The capacity to reserve for parsing the string
-   */
-  Variant(std::string json, size_t capacity) : jsonBuffer(capacity) {
-    error = deserializeJson(jsonBuffer, json,
-                            DeserializationOption::NestingLimit(255));
-    if (!error) jsonObj = jsonBuffer.as<JsonObject>();
-  }
-#endif
+template <class T>
+struct get_dest<T,
+                typename std::enable_if<std::is_same<
+                    uint32_t, decltype(std::declval<T>().dest)>::value>::type> {
+  uint32_t dest(T* package) { return package->dest; }
+};
 
-#ifdef ARDUINOJSON_ENABLE_ARDUINO_STRING
-  /**
-   * Create Variant object from a json string
-   *
-   * @param json The json string containing a package
-   */
-  Variant(String json)
-      : jsonBuffer(JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(4) +
-                   2 * json.length()) {
-    error = deserializeJson(jsonBuffer, json,
-                            DeserializationOption::NestingLimit(255));
-    if (!error) jsonObj = jsonBuffer.as<JsonObject>();
-  }
-
-  /**
-   * Create Variant object from a json string
-   *
-   * @param json The json string containing a package
-   * @param capacity The capacity to reserve for parsing the string
-   */
-  Variant(String json, size_t capacity) : jsonBuffer(capacity) {
-    error = deserializeJson(jsonBuffer, json,
-                            DeserializationOption::NestingLimit(255));
-    if (!error) jsonObj = jsonBuffer.as<JsonObject>();
-  }
-#endif
-  /**
-   * Create Variant object from any package implementing PackageInterface
-   */
-  Variant(const PackageInterface* pkg) : jsonBuffer(pkg->jsonObjectSize()) {
-    jsonObj = jsonBuffer.to<JsonObject>();
-    jsonObj = pkg->addTo(std::move(jsonObj));
-  }
-
-  /**
-   * Create Variant object from a Single package
-   *
-   * @param single The single package
-   */
-  Variant(Single single) : jsonBuffer(single.jsonObjectSize()) {
-    jsonObj = jsonBuffer.to<JsonObject>();
-    jsonObj = single.addTo(std::move(jsonObj));
-  }
-
-  /**
-   * Create Variant object from a Broadcast package
-   *
-   * @param broadcast The broadcast package
-   */
-  Variant(Broadcast broadcast) : jsonBuffer(broadcast.jsonObjectSize()) {
-    jsonObj = jsonBuffer.to<JsonObject>();
-    jsonObj = broadcast.addTo(std::move(jsonObj));
-  }
-
-  /**
-   * Create Variant object from a NodeTree
-   *
-   * @param nodeTree The NodeTree
-   */
-  Variant(NodeTree nodeTree) : jsonBuffer(nodeTree.jsonObjectSize()) {
-    jsonObj = jsonBuffer.to<JsonObject>();
-    jsonObj = nodeTree.addTo(std::move(jsonObj));
-  }
-
-  /**
-   * Create Variant object from a NodeSyncReply package
-   *
-   * @param nodeSyncReply The nodeSyncReply package
-   */
-  Variant(NodeSyncReply nodeSyncReply)
-      : jsonBuffer(nodeSyncReply.jsonObjectSize()) {
-    jsonObj = jsonBuffer.to<JsonObject>();
-    jsonObj = nodeSyncReply.addTo(std::move(jsonObj));
-  }
-
-  /**
-   * Create Variant object from a NodeSyncRequest package
-   *
-   * @param nodeSyncRequest The nodeSyncRequest package
-   */
-  Variant(NodeSyncRequest nodeSyncRequest)
-      : jsonBuffer(nodeSyncRequest.jsonObjectSize()) {
-    jsonObj = jsonBuffer.to<JsonObject>();
-    jsonObj = nodeSyncRequest.addTo(std::move(jsonObj));
-  }
-
-  /**
-   * Create Variant object from a TimeSync package
-   *
-   * @param timeSync The timeSync package
-   */
-  Variant(TimeSync timeSync) : jsonBuffer(timeSync.jsonObjectSize()) {
-    jsonObj = jsonBuffer.to<JsonObject>();
-    jsonObj = timeSync.addTo(std::move(jsonObj));
-  }
-
-  /**
-   * Create Variant object from a TimeDelay package
-   *
-   * @param timeDelay The timeDelay package
-   */
-  Variant(TimeDelay timeDelay) : jsonBuffer(timeDelay.jsonObjectSize()) {
-    jsonObj = jsonBuffer.to<JsonObject>();
-    jsonObj = timeDelay.addTo(std::move(jsonObj));
-  }
-
-  /**
-   * Whether this package is of the given type
-   */
-  template <typename T>
-  inline bool is() {
-    return false;
-  }
-
-  /**
-   * Convert Variant to the given type
-   */
-  template <typename T>
-  inline T to() {
-    return T(jsonObj);
-  }
-
-  /**
-   * Return package type
-   */
-  int type() { return jsonObj["type"].as<int>(); }
-
-  /**
-   * Package routing method
-   */
-  router::Type routing() {
-    if (jsonObj.containsKey("routing"))
-      return (router::Type)jsonObj["routing"].as<int>();
-
-    auto type = this->type();
+template <class T, typename = void>
+struct get_routing {
+  router::Type routing(T* package) {
+    auto type = package->packageType();
     if (type == SINGLE || type == TIME_DELAY) return router::SINGLE;
     if (type == BROADCAST) return router::BROADCAST;
     if (type == NODE_SYNC_REQUEST || type == NODE_SYNC_REPLY ||
@@ -545,91 +298,127 @@ class Variant {
       return router::NEIGHBOUR;
     return router::ROUTING_ERROR;
   }
+};
+
+template <class T>
+struct get_routing<
+    T, typename std::enable_if<std::is_same<
+           uint32_t, decltype(std::declval<T>().routing)>::value>::type> {
+  router::Type routing(T* package) { return package->routing; }
+};
+
+class VariantBase {};
+
+/**
+ * Can store any package variant
+ *
+ * Internally stores packages as a JsonObject. Main use case is to convert
+ * different packages from and to Json (using ArduinoJson).
+ */
+template <typename T>
+class Variant : public VariantBase {
+ public:
+  T* package;
+  /**
+   * Create Variant object from any package implementing PackageInterface
+   */
+  // Variant(const PackageInterface* pkg) { package =
+  // std::unique_ptr<PackageInterface>(pkg); }
+
+  Variant(T& single) { package = &single; }
+
+  /**
+   * Whether this package is of the given type
+   */
+  inline bool is() { return false; }
+
+  /**
+   * Convert Variant to the given type
+   */
+  inline T* to() { return package; }
+
+  /**
+   * Return package type
+   */
+  int type() { return package->packageType(); }
+
+  /**
+   * Package routing method
+   */
+  router::Type routing() { return get_routing<T>::routing(package); }
 
   /**
    * Destination node of the package
    */
-  uint32_t dest() {
-    if (jsonObj.containsKey("dest")) return jsonObj["dest"].as<uint32_t>();
-    return 0;
-  }
+  uint32_t dest() { return get_dest<T>::dest(package); }
 
-#ifdef ARDUINOJSON_ENABLE_STD_STRING
   /**
    * Print a variant to a string
    *
    * @return A json representation of the string
    */
-  void printTo(std::string& str, bool pretty = false) {
-    if (pretty)
-      serializeJsonPretty(jsonObj, str);
-    else
-      serializeJson(jsonObj, str);
-  }
-#endif
-
-#ifdef ARDUINOJSON_ENABLE_ARDUINO_STRING
-  /**
-   * Print a variant to a string
-   *
-   * @return A json representation of the string
-   */
-  void printTo(String& str, bool pretty = false) {
-    if (pretty)
-      serializeJsonPretty(jsonObj, str);
-    else
-      serializeJson(jsonObj, str);
-  }
-#endif
-
-  DeserializationError error = DeserializationError::Ok;
-
- private:
-  DynamicJsonDocument jsonBuffer;
-  JsonObject jsonObj;
+  void serializeTo(std::string& str) {}
+  void deserializeFrom(const std::string& str) {}
 };
 
 template <>
-inline bool Variant::is<Single>() {
-  return jsonObj["type"].as<int>() == SINGLE;
-}
+class Variant<Single> {
+  void serializeTo(std::string& str) {}
+  void deserializeFrom(const std::string& str) {}
+};
 
-template <>
-inline bool Variant::is<Broadcast>() {
-  return jsonObj["type"].as<int>() == BROADCAST;
-}
+// template <>
+// inline bool Variant::is<Single>() {
+//   return package->packageType() == SINGLE;
+// }
 
-template <>
-inline bool Variant::is<NodeSyncReply>() {
-  return jsonObj["type"].as<int>() == NODE_SYNC_REPLY;
-}
+// template <>
+// inline bool Variant::is<Broadcast>() {
+//   return package->packageType() == BROADCAST;
+// }
 
-template <>
-inline bool Variant::is<NodeSyncRequest>() {
-  return jsonObj["type"].as<int>() == NODE_SYNC_REQUEST;
-}
+// template <>
+// inline bool Variant::is<NodeSyncReply>() {
+//   return package->packageType() == NODE_SYNC_REPLY;
+// }
 
-template <>
-inline bool Variant::is<TimeSync>() {
-  return jsonObj["type"].as<int>() == TIME_SYNC;
-}
+// template <>
+// inline bool Variant::is<NodeSyncRequest>() {
+//   return package->packageType() == NODE_SYNC_REQUEST;
+// }
 
-template <>
-inline bool Variant::is<TimeDelay>() {
-  return jsonObj["type"].as<int>() == TIME_DELAY;
-}
+// template <>
+// inline bool Variant::is<TimeSync>() {
+//   return package->packageType() == TIME_SYNC;
+// }
 
-template <>
-inline JsonObject Variant::to<JsonObject>() {
-  return jsonObj;
-}
+// template <>
+// inline bool Variant::is<TimeDelay>() {
+//   return package->packageType() == TIME_DELAY;
+// }
 
-inline TSTRING NodeTree::toString(bool pretty) {
-  TSTRING str;
-  auto variant = Variant(*this);
-  variant.printTo(str, pretty);
-  return str;
-}
+// inline TSTRING NodeTree::toString(bool pretty) {
+//   TSTRING str;
+//   auto variant = Variant(*this);
+//   variant.printTo(str, pretty);
+//   return str;
+// }
+
+// typedef PackageInterface* (*create_ptr)();
+class PackageTypeProvider {
+ public:
+  template <class T>
+  static void add(int typeId) {
+    map.emplace(typeId, []() { return new T(); });
+  };
+
+  static PackageInterface* get(int typeId) { return map[typeId](); }
+
+ protected:
+  static std::unordered_map<int, std::function<PackageInterface*()>> map;
+};
+
+void test() { PackageTypeProvider::add<Single>(10); }
 
 }  // namespace protocol
 }  // namespace painlessmesh

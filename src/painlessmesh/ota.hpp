@@ -350,7 +350,7 @@ void addSendPackageCallback(Scheduler& scheduler,
 #if defined(ESP32) || defined(ESP8266)
 
   mesh.onPackage(11, [&mesh, callback,
-                      otaPartSize](painlessmesh::protocol::Variant variant) {
+                      otaPartSize](painlessmesh::protocol::VariantBase* variant) {
     auto pkg = variant.to<painlessmesh::plugin::ota::DataRequest>();
     char buffer[otaPartSize + 1];
     memset(buffer, 0, (otaPartSize + 1) * sizeof(char));
@@ -401,7 +401,7 @@ void addReceivePackageCallback(Scheduler& scheduler,
   }
 
   mesh.onPackage(10, [currentFW, updateFW, &mesh,
-                      &scheduler](protocol::Variant variant) {
+                      &scheduler](protocol::VariantBase* variant) {
     // convert variant to Announce
     auto pkg = variant.to<Announce>();
     // Check if we want the update
@@ -433,7 +433,7 @@ void addReceivePackageCallback(Scheduler& scheduler,
   // });
 
   mesh.onPackage(12, [currentFW, updateFW, &mesh,
-                      &scheduler](protocol::Variant variant) {
+                      &scheduler](protocol::VariantBase* variant) {
     auto pkg = variant.to<Data>();
     // Check whether it is a new part, of correct md5 role etc etc
     if (updateFW->partNo == pkg.partNo && updateFW->md5 == pkg.md5 &&
@@ -479,7 +479,7 @@ void addReceivePackageCallback(Scheduler& scheduler,
           auto file = LittleFS.open(updateFW->ota_fn, "w");
           String msg;
           auto var = protocol::Variant(updateFW.get());
-          var.printTo(msg);
+          var.serializeTo(msg);
           file.print(msg);
           file.close();
 

@@ -10,7 +10,6 @@
     "frameworks": "arduino",
     "platforms": "espressif8266, espressif32",
     "dependencies": [
-        { "name": "ArduinoJson" },
         { "name": "TaskScheduler" },
         { "name": "AsyncTCP",  "platforms" : "espressif32" },
         { "name": "ESPAsyncTCP",  "platforms" : "espressif8266" }

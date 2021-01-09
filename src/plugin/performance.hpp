@@ -187,7 +187,7 @@ void begin(T& mesh, double frequency = 2) {
     }
     protocol::Variant var(tracker.get());
     TSTRING str;
-    var.printTo(str);
+    var.serializeTo(str);
 #ifdef PAINLESSMESH_ENABLE_STD_STRING
     std::cout << str << std::endl;
 #else

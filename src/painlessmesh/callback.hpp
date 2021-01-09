@@ -71,7 +71,7 @@ class PackageCallbackList {
 
 template <typename T>
 using MeshPackageCallbackList =
-    PackageCallbackList<protocol::Variant, std::shared_ptr<T>, uint32_t>;
+    PackageCallbackList<protocol::VariantBase*, std::shared_ptr<T>, uint32_t>;
 }  // namespace callback
 }  // namespace painlessmesh
 
