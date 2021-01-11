@@ -2,6 +2,7 @@
 #define _PAINLESS_MESH_PACKAGETYPEPROVIDER_HPP_
 
 #include <memory>
+#include <unordered_map>
 
 #include "variant.hpp"
 #include "protocol.hpp"

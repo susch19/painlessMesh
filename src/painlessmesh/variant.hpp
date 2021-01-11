@@ -40,8 +40,8 @@ class TypedVariantBase : public VariantBase {
     if (!cleanup) return;
     delete package;
   }
-  virtual void serializeTo(std::string& str);
-  virtual void deserializeFrom(const std::string& str);
+  virtual void serializeTo(std::string& str) = 0;
+  virtual void deserializeFrom(const std::string& str) = 0;
 
  private:
   bool cleanup;
@@ -197,6 +197,7 @@ class Variant<protocol::NodeSync>
     SerializeHelper::deserialize(node, str, offset);
   }
 };
+
 
 // template <class T, typename = void>
 // struct get_dest {

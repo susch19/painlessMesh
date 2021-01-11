@@ -7,9 +7,9 @@
 #include <unordered_map>
 
 #include "Arduino.h"
+#include "nodeTree.hpp"
 #include "painlessmesh/configuration.hpp"
 #include "serializer.hpp"
-#include "nodeTree.hpp"
 // #include "variant.hpp"
 
 namespace painlessmesh {
@@ -58,10 +58,8 @@ struct ProtocolHeader {
   // ProtocolHeader(uint16_t type, uint16_t routing, uint32_t dest)
   //     : type(type), routing(routing), dest(dest) {}
 
-  static ProtocolHeader deserializeFrom(const std::string& str, int& offset) {
-    ProtocolHeader header;
-    SerializeHelper::deserialize(&header, str, offset);
-    return header;
+  void deserializeFrom(const std::string& str, int& offset) {
+    SerializeHelper::deserialize(this, str, offset);
   }
 
   void serializeTo(std::string& str, int& offset) {
@@ -76,7 +74,11 @@ class PackageInterface {
 
   PackageInterface(ProtocolHeader header) : header(header) {}
 
-  PackageInterface(uint16_t type) { header.type = type; }
+  // PackageInterface(uint16_t type) { header.type = type; }
+  PackageInterface(uint16_t type, uint16_t routing) {
+    header.type = type;
+    header.routing = routing;
+  }
 
   // PackageInterface(Type type, uint32_t dest) : type(type), dest(dest) {}
 
@@ -100,7 +102,7 @@ class Single : public PackageInterface {
   Single(ProtocolHeader header) : PackageInterface(header) {}
 
   Single(uint32_t fromID, uint32_t destID, std::string& message)
-      : PackageInterface(SINGLE) {
+      : PackageInterface(SINGLE, router::SINGLE) {
     from = fromID;
     msg = message;
   }
@@ -110,7 +112,7 @@ class Single : public PackageInterface {
   }
 
  protected:
-  Single(int type) : PackageInterface(type) {}
+  Single(int type) : PackageInterface(type, router::SINGLE) {}
 };
 
 /**
@@ -124,17 +126,16 @@ class Broadcast : public Single {
 
   Broadcast(uint32_t fromID, std::string& message) : Single(from, 0, message) {
     header.type = BROADCAST;
+    header.type = router::BROADCAST;
   }
 };
 
-
-
-class NodeSync : public NodeTree, public PackageInterface  {
+class NodeSync : public NodeTree, public PackageInterface {
  public:
   uint32_t from;
 
-  NodeSync(Type type = NONE) : PackageInterface(type) {}
-  NodeSync(ProtocolHeader header) :PackageInterface(header) {}
+  NodeSync(Type type = NONE) : PackageInterface(type, router::NEIGHBOUR) {}
+  NodeSync(ProtocolHeader header) : PackageInterface(header) {}
   NodeSync(uint32_t fromID, uint32_t destID, std::list<NodeTree> subTree,
            bool iAmRoot = false, Type type = NONE)
       : NodeSync(type) {
@@ -159,7 +160,7 @@ class NodeSync : public NodeTree, public PackageInterface  {
 /**
  * NodeSyncRequest package
  */
-class NodeSyncRequest : public NodeSync  {
+class NodeSyncRequest : public NodeSync {
  public:
   // NodeSyncRequest() : NodeSync(NODE_SYNC_REQUEST) {}
   NodeSyncRequest(ProtocolHeader header) : NodeSync(header) {}
@@ -182,9 +183,9 @@ class NodeSyncReply : public NodeSync {
 
 struct time_sync_msg_t {
   int16_t type = TIME_SYNC_ERROR;
-  uint32_t t0 =0;
-  uint32_t t1 =0;
-  uint32_t t2=0;
+  uint32_t t0 = 0;
+  uint32_t t1 = 0;
+  uint32_t t2 = 0;
 } __attribute__((packed));
 
 /**
@@ -195,11 +196,10 @@ class TimeSync : public PackageInterface {
   uint32_t from;
   time_sync_msg_t msg;
 
-  TimeSync(ProtocolHeader header) : PackageInterface(header) {
-  }
+  TimeSync(ProtocolHeader header) : PackageInterface(header) {}
 
-  TimeSync() : PackageInterface(TIME_SYNC) { }
-  TimeSync(int type) : PackageInterface(type) {  }
+  TimeSync() : PackageInterface(TIME_SYNC, router::NEIGHBOUR) {}
+  TimeSync(int type) : PackageInterface(type, router::NEIGHBOUR) {}
 
   TimeSync(uint32_t fromID, uint32_t destID) : TimeSync() {
     from = fromID;
@@ -278,5 +278,6 @@ class TimeDelay : public TimeSync {
 };
 
 }  // namespace protocol
+
 }  // namespace painlessmesh
 #endif

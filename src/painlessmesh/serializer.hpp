@@ -28,8 +28,10 @@ template <class T>
 struct InternalSerializer<
     T, typename std::enable_if<std::is_trivially_copyable<T>::value>::type> {
   static void deserialize(T* dest, const std::string& str, int& offset) {
+    Serial.println(offset);
     memcpy(dest, &str[offset], sizeof(T));
     offset += sizeof(T);
+    Serial.println(offset);
   }
   static void serialize(T* source, std::string& str, int& offset) {
     str.reserve(offset + sizeof(T));

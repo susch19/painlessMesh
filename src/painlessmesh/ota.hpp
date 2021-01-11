@@ -107,7 +107,7 @@ class AnnounceSingle : public SinglePackage {
 
   // size_t jsonObjectSize() const {
   //   return JSON_OBJECT_SIZE(noJsonFields + 5) +
-  //          round(1.1 * (md5.length() + hardware.length() + role.length()));
+  //          raund(1.1 * (md5.length() + hardware.length() + role.length()));
   // }
   uint32_t size() override {
     return SinglePackage::size() + md5.size() + hardware.size() + role.size() +
@@ -116,7 +116,7 @@ class AnnounceSingle : public SinglePackage {
 
  protected:
   AnnounceSingle(int type, router::Type routing) : SinglePackage(type) {
-    this->routing = routing;
+    this->header.routing = routing;
   }
 };
 
@@ -175,7 +175,7 @@ class Announce : public BroadcastPackage {
 
   // size_t jsonObjectSize() const {
   //   return JSON_OBJECT_SIZE(noJsonFields + 5) +
-  //          round(1.1 * (md5.length() + hardware.length() + role.length()));
+  //          raund(1.1 * (md5.length() + hardware.length() + role.length()));
   // }
   uint32_t size() override {
     return BroadcastPackage::size() + md5.size() + hardware.size() +
@@ -184,7 +184,7 @@ class Announce : public BroadcastPackage {
 
  protected:
   Announce(int type, router::Type routing) : BroadcastPackage(type) {
-    this->routing = routing;
+    this->header.routing = routing;
   }
 };
 
@@ -238,7 +238,7 @@ class DataRequest : public Announce {
 
   // size_t jsonObjectSize() const {
   //   return JSON_OBJECT_SIZE(noJsonFields + 5 + 2) +
-  //          round(1.1 * (md5.length() + hardware.length() + role.length()));
+  //          raund(1.1 * (md5.length() + hardware.length() + role.length()));
   // }
 
  protected:
@@ -283,7 +283,7 @@ class Data : public DataRequest {
 
   // size_t jsonObjectSize() const {
   //   return JSON_OBJECT_SIZE(noJsonFields + 5 + 2 + 1) +
-  //          round(1.1 * (md5.length() + hardware.length() + role.length() +
+  //          raund(1.1 * (md5.length() + hardware.length() + role.length() +
   //                       data.length()));
   // }
 };
@@ -321,7 +321,7 @@ class State : public protocol::PackageInterface {
   size_t partNo = 0;
   String ota_fn = "/ota_fw.json";
 
-  State() : PackageInterface(0) {}
+  State() : PackageInterface(0, router::SINGLE) {}
 
   // State(JsonObject jsonObj) {
   //   md5 = jsonObj["md5"].as<TSTRING>();
@@ -329,7 +329,7 @@ class State : public protocol::PackageInterface {
   //   role = jsonObj["role"].as<TSTRING>();
   // }
 
-  State(const Announce& ann) : PackageInterface(0) {
+  State(const Announce& ann) : PackageInterface(0, router::SINGLE) {
     md5 = ann.md5;
     hardware = ann.hardware;
     role = ann.role;
@@ -351,7 +351,7 @@ class State : public protocol::PackageInterface {
 
   // size_t jsonObjectSize() const {
   //   return JSON_OBJECT_SIZE(3) +
-  //          round(1.1 * (md5.length() + hardware.length() + role.length()));
+  //          raund(1.1 * (md5.length() + hardware.length() + role.length()));
   // }
 
   std::shared_ptr<Task> task;
@@ -541,6 +541,50 @@ void addReceivePackageCallback(Scheduler& scheduler,
 
 }  // namespace ota
 }  // namespace plugin
-}  // namespace painlessmesh
+
+
+template <>
+class Variant<plugin::ota::State>
+    : public TypedVariantBase<plugin::ota::State> {
+ public:
+  Variant(plugin::ota::State* state, bool cleanup = false)
+      : TypedVariantBase<plugin::ota::State>(state, cleanup) {}
+  void serializeTo(std::string& str) override {
+    int offset = 0;
+    package->header.serializeTo(str, offset);
+    SerializeHelper::serialize(&package->from, str, offset);
+    auto node = static_cast<protocol::NodeTree*>(package);
+    SerializeHelper::serialize(node, str, offset);
+  }
+  void deserializeFrom(const std::string& str) override {
+    int offset = 0;
+    package->header.deserializeFrom(str, offset);
+    SerializeHelper::deserialize(&package->from, str, offset);
+    auto node = static_cast<protocol::NodeTree*>(package);
+    SerializeHelper::deserialize(node, str, offset);
+  }
+};
+
+template <>
+class Variant<plugin::ota::State>
+    : public TypedVariantBase<plugin::ota::State> {
+ public:
+  Variant(plugin::ota::State* state, bool cleanup = false)
+      : TypedVariantBase<plugin::ota::State>(state, cleanup) {}
+  void serializeTo(std::string& str) override {
+    int offset = 0;
+    package->header.serializeTo(str, offset);
+    SerializeHelper::serialize(&package->from, str, offset);
+    auto node = static_cast<protocol::NodeTree*>(package);
+    SerializeHelper::serialize(node, str, offset);
+  }
+  void deserializeFrom(const std::string& str) override {
+    int offset = 0;
+    package->header.deserializeFrom(str, offset);
+    SerializeHelper::deserialize(&package->from, str, offset);
+    auto node = static_cast<protocol::NodeTree*>(package);
+    SerializeHelper::deserialize(node, str, offset);
+  }
+};
 
 #endif

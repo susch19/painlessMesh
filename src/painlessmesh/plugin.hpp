@@ -9,6 +9,8 @@
 
 namespace painlessmesh {
 
+
+
 /** Plugin interface for painlessMesh packages/messages
  *
  * This interface allows one to design their own messages types/packages, and
@@ -39,20 +41,14 @@ namespace plugin {
 class SinglePackage : public protocol::PackageInterface {
  public:
   uint32_t from;
-  uint32_t dest;
-  router::Type routing;
 
-  SinglePackage()
-      : PackageInterface(protocol::SINGLE),
-        routing(router::SINGLE) {}
+  SinglePackage() : PackageInterface(protocol::SINGLE, router::SINGLE) {}
 
-  SinglePackage(uint16_t type)
-      : PackageInterface(type), routing(router::SINGLE) {}
+  SinglePackage(protocol::ProtocolHeader header)
+      : PackageInterface(header){}
+  SinglePackage(uint16_t type) : PackageInterface(type, router::SINGLE) {}
 
-  uint32_t size() {
-    return PackageInterface::size() + sizeof(from) + sizeof(dest) +
-           sizeof(routing);
-  }
+  uint32_t size() { return PackageInterface::size() + sizeof(from); }
 
   // SinglePackage(JsonObject jsonObj) {
   //   from = jsonObj["from"];
@@ -73,17 +69,19 @@ class SinglePackage : public protocol::PackageInterface {
 class BroadcastPackage : public protocol::PackageInterface {
  public:
   uint32_t from;
-  router::Type routing;
 
   BroadcastPackage()
-      : PackageInterface(protocol::BROADCAST),
-        routing(router::BROADCAST) {}
+      : PackageInterface(protocol::BROADCAST, router::BROADCAST){}
+
+      
+  BroadcastPackage(protocol::ProtocolHeader header)
+      : PackageInterface(header){}
 
   BroadcastPackage(uint16_t type)
-      : PackageInterface(type), routing(router::BROADCAST) {}
+      : PackageInterface(type, router::BROADCAST) {}
 
   uint32_t size() override {
-    return PackageInterface::size() + sizeof(from) + sizeof(routing);
+    return PackageInterface::size() + sizeof(from);
   }
 
   // BroadcastPackage(JsonObject jsonObj) {
@@ -102,10 +100,14 @@ class BroadcastPackage : public protocol::PackageInterface {
 
 class NeighbourPackage : public plugin::SinglePackage {
  public:
+ 
+  NeighbourPackage(protocol::ProtocolHeader header)
+      : SinglePackage(header){}
   NeighbourPackage(protocol::Type type) : SinglePackage(type) {
-    routing = router::NEIGHBOUR;
+    header.routing = router::NEIGHBOUR;
   }
 };
+
 
 /**
  * Handle different plugins
@@ -198,5 +200,60 @@ class PackageHandler : public layout::Layout<T> {
 };
 
 }  // namespace plugin
+
+
+template <>
+class Variant<plugin::SinglePackage>
+    : public TypedVariantBase<plugin::SinglePackage> {
+ public:
+  Variant(plugin::SinglePackage* single, bool cleanup = false)
+      : TypedVariantBase<plugin::SinglePackage>(single, cleanup) {}
+  void serializeTo(std::string& str) override {
+    int offset = 0;
+    package->header.serializeTo(str, offset);
+    SerializeHelper::serialize(&package->from, str, offset);
+  }
+  void deserializeFrom(const std::string& str) override {
+    int offset = 0;
+    package->header.deserializeFrom(str, offset);
+    SerializeHelper::deserialize(&package->from, str, offset);
+  }
+};
+
+template <>
+class Variant<plugin::BroadcastPackage>
+    : public TypedVariantBase<plugin::BroadcastPackage> {
+ public:
+  Variant(plugin::BroadcastPackage* broadcast, bool cleanup = false)
+      : TypedVariantBase<plugin::BroadcastPackage>(broadcast, cleanup) {}
+  void serializeTo(std::string& str) override {
+    int offset = 0;
+    package->header.serializeTo(str, offset);
+    SerializeHelper::serialize(&package->from, str, offset);
+  }
+  void deserializeFrom(const std::string& str) override {
+    int offset = 0;
+    package->header.deserializeFrom(str, offset);
+    SerializeHelper::deserialize(&package->from, str, offset);
+  }
+};
+
+template <>
+class Variant<plugin::NeighbourPackage>
+    : public TypedVariantBase<plugin::NeighbourPackage> {
+ public:
+  Variant(plugin::NeighbourPackage* neighbour, bool cleanup = false)
+      : TypedVariantBase<plugin::NeighbourPackage>(neighbour, cleanup) {}
+  void serializeTo(std::string& str) override {
+    int offset = 0;
+    package->header.serializeTo(str, offset);
+    SerializeHelper::serialize(&package->from, str, offset);
+  }
+  void deserializeFrom(const std::string& str) override {
+    int offset = 0;
+    package->header.deserializeFrom(str, offset);
+    SerializeHelper::deserialize(&package->from, str, offset);
+  }
+};
 }  // namespace painlessmesh
 #endif

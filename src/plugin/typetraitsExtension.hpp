@@ -1,3 +1,4 @@
+#ifdef ESP8266
 #ifndef _PAINLESS_MESH_TYPETRAITSEXTENSION_HPP_
 #define _PAINLESS_MESH_TYPETRAITSEXTENSION_HPP_
 
@@ -63,4 +64,5 @@ class is_trivially_copyable<T*> : public std::true_type {};
 
 }  // namespace std
 
+#endif
 #endif

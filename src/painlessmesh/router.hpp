@@ -7,9 +7,9 @@
 #include "painlessmesh/callback.hpp"
 #include "painlessmesh/layout.hpp"
 #include "painlessmesh/logger.hpp"
+#include "painlessmesh/packageTypeProvider.hpp"
 #include "painlessmesh/protocol.hpp"
 #include "painlessmesh/variant.hpp"
-#include "painlessmesh/packageTypeProvider.hpp"
 
 extern painlessmesh::logger::LogClass Log;
 
@@ -43,8 +43,7 @@ bool send(T& package, std::shared_ptr<U> conn, bool priority = false) {
 }
 
 template <class T, class U>
-bool send(Variant<T>* variant, std::shared_ptr<U> conn,
-          bool priority = false) {
+bool send(Variant<T>* variant, std::shared_ptr<U> conn, bool priority = false) {
   TSTRING msg;
   variant.serializeTo(msg);
   return conn->addMessage(msg, priority);
@@ -55,7 +54,7 @@ bool send(T& package, layout::Layout<U> layout) {
   auto variant = Variant<T>(&package);
   std::string msg;
   variant.serializeTo(msg);
-  auto conn = findRoute<U>(layout, variant.dest);
+  auto conn = findRoute<U>(layout, variant.package->header.dest);
   if (conn) return conn->addMessage(msg);
   return false;
 }
@@ -78,7 +77,7 @@ bool send(std::string& msg, protocol::ProtocolHeader& header,
 
 template <class T, class U>
 size_t broadcast(T& package, layout::Layout<U> layout, uint32_t exclude) {
-  auto variant = Variant<T>(package);
+  auto variant = Variant<T>(&package);
   std::string msg;
   variant.serializeTo(msg);
   size_t i = 0;
@@ -127,7 +126,8 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
       pkg.c_str());
 
   int offset = 0;
-  auto header = protocol::ProtocolHeader::deserializeFrom(pkg, offset);
+  protocol::ProtocolHeader header;
+  header.deserializeFrom(pkg, offset);
 
   if (header.routing == SINGLE && header.dest != layout.getNodeId()) {
     // Send on without further processing
@@ -139,10 +139,11 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
 
   auto variant = PackageTypeProvider::get(header);
 
-  auto calls = cbl.execute(header.type, variant.get(), connection, receivedAt); //VariantBase*, std::shared_ptr<T>, uint32_t
+  auto calls =
+      cbl.execute(header.type, variant.get(), connection,
+                  receivedAt);  // VariantBase*, std::shared_ptr<T>, uint32_t
   if (calls == 0)
-    Log(DEBUG, "routePackage(): No callbacks executed; %u\n",
-        variant->type());
+    Log(DEBUG, "routePackage(): No callbacks executed; %u\n", variant->type());
 }
 
 template <class T, class U>
@@ -211,8 +212,7 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
       protocol::NODE_SYNC_REQUEST,
       [&mesh](VariantBase* variant, std::shared_ptr<U> connection,
               uint32_t receivedAt) {
-        auto typedVariant =
-            (Variant<protocol::NodeSyncRequest>*)variant;
+        auto typedVariant = (Variant<protocol::NodeSyncRequest>*)variant;
         auto newTree = typedVariant->package;
         handleNodeSync<T, U>(mesh, newTree, connection);
         auto nodeTree = connection->reply(std::move(mesh.asNodeTree()));
@@ -225,8 +225,7 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
       protocol::NODE_SYNC_REPLY,
       [&mesh](VariantBase* variant, std::shared_ptr<U> connection,
               uint32_t receivedAt) {
-        auto typedVariant =
-            (Variant<protocol::NodeSyncReply>*)variant;
+        auto typedVariant = (Variant<protocol::NodeSyncReply>*)variant;
         auto newTree = typedVariant->package;
         handleNodeSync<T, U>(mesh, newTree, connection);
         connection->timeOutTask.disable();

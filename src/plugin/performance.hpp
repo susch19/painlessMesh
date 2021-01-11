@@ -87,7 +87,7 @@ class PerformancePackage : public plugin::BroadcastPackage {
   // }
 
   // size_t jsonObjectSize() const {
-  //   return JSON_OBJECT_SIZE(4 + 5) + round(2 * (hardware.length()));
+  //   return JSON_OBJECT_SIZE(4 + 5) + raund(2 * (hardware.length()));
   // }
   uint32_t size() override {
     return plugin::BroadcastPackage::size() + hardware.length() +

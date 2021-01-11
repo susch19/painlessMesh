@@ -4,7 +4,9 @@
 #include "painlessmesh/configuration.hpp"
 
 #include "painlessmesh/ntp.hpp"
+#include "painlessmesh/packageTypeProvider.hpp"
 #include "painlessmesh/plugin.hpp"
+#include "painlessmesh/protocol.hpp"
 #include "painlessmesh/tcp.hpp"
 
 #ifdef PAINLESSMESH_ENABLE_OTA
@@ -28,6 +30,23 @@ template <class T>
 class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
  public:
   void init(uint32_t id) {
+    /* NONE = 0,
+      TIME_DELAY = 3,
+      TIME_SYNC = 4,
+      NODE_SYNC_REQUEST = 5,
+      NODE_SYNC_REPLY = 6,
+      BROADCAST = 8,  // application data for everyone
+      SINGLE = 9      // application data for a single node,*/
+
+    PackageTypeProvider::add<protocol::Single>(9);
+    PackageTypeProvider::add<protocol::Broadcast>(8);
+    PackageTypeProvider::add<protocol::NodeSyncReply>(6);
+    PackageTypeProvider::add<protocol::NodeSyncRequest>(5);
+    PackageTypeProvider::add<protocol::TimeSync>(4);
+    PackageTypeProvider::add<protocol::TimeDelay>(3);
+    PackageTypeProvider::add<plugin::BroadcastPackage>(3);
+    PackageTypeProvider::add<plugin::SinglePackage>(3);
+
     using namespace logger;
     if (!isExternalScheduler) {
       mScheduler = new Scheduler();
@@ -66,19 +85,23 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   }
 
 #ifdef PAINLESSMESH_ENABLE_OTA
-  std::shared_ptr<Task> offerOTA(painlessmesh::plugin::ota::Announce announce){
-    auto announceTask = 
-            this->addTask(TASK_SECOND*60,60,[this, announce]() {this->sendPackage(&announce); });
+  std::shared_ptr<Task> offerOTA(painlessmesh::plugin::ota::Announce announce) {
+    auto announceTask = this->addTask(TASK_SECOND * 60, 60, [this, announce]() {
+      this->sendPackage(&announce);
+    });
     return announceTask;
   }
 
-    std::shared_ptr<Task> offerOTA(painlessmesh::plugin::ota::AnnounceSingle announce){
-    auto announceTask = 
-            this->addTask(TASK_SECOND*60,60,[this, announce]() {this->sendPackage(&announce); });
+  std::shared_ptr<Task> offerOTA(
+      painlessmesh::plugin::ota::AnnounceSingle announce) {
+    auto announceTask = this->addTask(TASK_SECOND * 60, 60, [this, announce]() {
+      this->sendPackage(&announce);
+    });
     return announceTask;
   }
 
-  std::shared_ptr<Task>  offerOTA(TSTRING role, TSTRING hardware, TSTRING md5,size_t noPart, bool forced = false){
+  std::shared_ptr<Task> offerOTA(TSTRING role, TSTRING hardware, TSTRING md5,
+                                 size_t noPart, bool forced = false) {
     painlessmesh::plugin::ota::Announce announce;
     announce.md5 = md5;
     announce.role = role;
@@ -89,13 +112,15 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return offerOTA(announce);
   }
 
-  void initOTASend(painlessmesh::plugin::ota::otaDataPacketCallbackType_t callback,size_t otaPartSize) {
-    painlessmesh::plugin::ota::addSendPackageCallback(*this->mScheduler, (*this),
-                                                  callback,otaPartSize);
+  void initOTASend(
+      painlessmesh::plugin::ota::otaDataPacketCallbackType_t callback,
+      size_t otaPartSize) {
+    painlessmesh::plugin::ota::addSendPackageCallback(
+        *this->mScheduler, (*this), callback, otaPartSize);
   }
   void initOTAReceive(TSTRING role = "") {
-    painlessmesh::plugin::ota::addReceivePackageCallback(*this->mScheduler, (*this),
-                                                  role);
+    painlessmesh::plugin::ota::addReceivePackageCallback(*this->mScheduler,
+                                                         (*this), role);
   }
 #endif
 
@@ -168,7 +193,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     Log(logger::COMMUNICATION, "sendSingle(): dest=%u msg=%s\n", destId,
         msg.c_str());
     auto single = painlessmesh::protocol::Single(this->nodeId, destId, msg);
-    return painlessmesh::router::send<T>(single, (*this));
+    return painlessmesh::router::send(
+        single, *(static_cast<layout::Layout<T> *>(this)));
   }
 
   /** Broadcast a message to every node on the mesh network.
@@ -183,8 +209,8 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     auto pkg = painlessmesh::protocol::Broadcast(this->nodeId, 0, msg);
     auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
     if (success && includeSelf) {
-      auto variant = Variant<painlessmesh::protocol::Broadcast>(pkg);
-      this->callbackList.execute(pkg.header.type, pkg, NULL, 0);
+      auto variant = Variant<painlessmesh::protocol::Broadcast>(&pkg);
+      this->callbackList.execute(pkg.header.type, static_cast<VariantBase*>(&variant), nullptr, 0);
     }
     if (success > 0) return true;
     return false;
@@ -224,15 +250,15 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     using namespace painlessmesh;
     this->callbackList.onPackage(
         protocol::SINGLE,
-        [onReceive](VariantBase* variant, std::shared_ptr<T>, uint32_t) {
-          auto pkg = static_cast<Variant<protocol::Single>*>(variant);
+        [onReceive](VariantBase *variant, std::shared_ptr<T>, uint32_t) {
+          auto pkg = static_cast<Variant<protocol::Single> *>(variant);
           onReceive(pkg->package->from, pkg->package->msg);
           return false;
         });
     this->callbackList.onPackage(
         protocol::BROADCAST,
-        [onReceive](VariantBase* variant, std::shared_ptr<T>, uint32_t) {
-          auto pkg = static_cast<Variant<protocol::Broadcast>*>(variant);
+        [onReceive](VariantBase *variant, std::shared_ptr<T>, uint32_t) {
+          auto pkg = static_cast<Variant<protocol::Broadcast> *>(variant);
           onReceive(pkg->package->from, pkg->package->msg);
           return false;
         });
@@ -454,11 +480,12 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
   friend void tcpSentCb(void *, AsyncClient *, size_t, uint32_t);
   friend void meshRecvCb(void *, AsyncClient *, void *, size_t);
   friend void painlessmesh::ntp::handleTimeSync<Mesh, T>(
-      Mesh &, painlessmesh::protocol::TimeSync*, std::shared_ptr<T>, uint32_t);
+      Mesh &, painlessmesh::protocol::TimeSync *, std::shared_ptr<T>, uint32_t);
   friend void painlessmesh::ntp::handleTimeDelay<Mesh, T>(
-      Mesh &, painlessmesh::protocol::TimeDelay*, std::shared_ptr<T>, uint32_t);
+      Mesh &, painlessmesh::protocol::TimeDelay *, std::shared_ptr<T>,
+      uint32_t);
   friend void painlessmesh::router::handleNodeSync<Mesh, T>(
-      Mesh &, protocol::NodeTree*, std::shared_ptr<T> conn);
+      Mesh &, protocol::NodeTree *, std::shared_ptr<T> conn);
   friend void painlessmesh::tcp::initServer<T, Mesh>(AsyncServer &, Mesh &);
   friend void painlessmesh::tcp::connect<T, Mesh>(AsyncClient &, IPAddress,
                                                   uint16_t, Mesh &);
