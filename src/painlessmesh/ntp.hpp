@@ -171,6 +171,7 @@ void handleTimeSync(T& mesh, painlessmesh::protocol::TimeSync* timeSync,
   Log(logger::S_TIME, "handleTimeSync(): ----------------------------------\n");
 }
 
+
 template <class T, class U>
 void handleTimeDelay(T& mesh, painlessmesh::protocol::TimeDelay* timeDelay,
                      std::shared_ptr<U> conn, uint32_t receivedAt) {
@@ -220,9 +221,9 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
   // TimeSync
   callbackList.onPackage(
       protocol::TIME_SYNC,
-      [&mesh](protocol::VariantBase* variant, std::shared_ptr<U> connection,
+      [&mesh](VariantBase* variant, std::shared_ptr<U> connection,
               uint32_t receivedAt) {
-        auto timeSync = static_cast<protocol::Variant<protocol::TimeSync>*>(variant);
+        auto timeSync = static_cast<Variant<protocol::TimeSync>*>(variant);
         handleTimeSync<T, U>(mesh, timeSync->package, connection, receivedAt);
         return false;
       });
@@ -230,9 +231,9 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
   // TimeDelay
   callbackList.onPackage(
       protocol::TIME_DELAY,
-      [&mesh](protocol::VariantBase* variant, std::shared_ptr<U> connection,
+      [&mesh](VariantBase* variant, std::shared_ptr<U> connection,
               uint32_t receivedAt) {
-        auto timeDelay = static_cast<protocol::Variant<protocol::TimeDelay>*>(variant);
+        auto timeDelay = static_cast<Variant<protocol::TimeDelay>*>(variant);
         handleTimeDelay<T, U>(mesh, timeDelay->package, connection, receivedAt);
         return false;
       });

@@ -5,6 +5,7 @@
 #include "painlessmesh/configuration.hpp"
 
 #include "painlessmesh/router.hpp"
+#include "painlessmesh/variant.hpp"
 
 namespace painlessmesh {
 
@@ -134,7 +135,7 @@ class PackageHandler : public layout::Layout<T> {
 
   template <typename P>
   bool sendPackage(const P* pkg) {
-    auto variant = protocol::Variant<P>(pkg);
+    auto variant = Variant<P>(pkg);
     // if single or neighbour with direction
     if (variant.routing() == router::SINGLE ||
         (variant.routing() == router::NEIGHBOUR && variant.dest() != 0)) {
@@ -152,8 +153,8 @@ class PackageHandler : public layout::Layout<T> {
   }
 
   void onPackage(int type,
-                 std::function<bool(protocol::VariantBase*)> function) {
-    auto func = [function](protocol::VariantBase* var, std::shared_ptr<T>,
+                 std::function<bool(painlessmesh::VariantBase*)> function) {
+    auto func = [function](painlessmesh::VariantBase* var, std::shared_ptr<T>,
                            uint32_t) { return function(var); };
     this->callbackList.onPackage(type, func);
   }

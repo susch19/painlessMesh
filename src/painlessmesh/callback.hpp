@@ -1,11 +1,13 @@
 #ifndef _PAINLESS_MESH_CALLBACK_HPP_
 #define _PAINLESS_MESH_CALLBACK_HPP_
 
-#include<map>
+#include<unordered_map>
+#include <vector>
 
 #include "painlessmesh/configuration.hpp"
 
 #include "painlessmesh/logger.hpp"
+#include "painlessmesh/variant.hpp"
 
 extern painlessmesh::logger::LogClass Log;
 
@@ -44,7 +46,7 @@ class List {
   }
 
  protected:
-  std::list<std::function<void(Args...)>> callbacks;
+  std::vector<std::function<void(Args...)>> callbacks;
 };
 
 /**
@@ -66,12 +68,12 @@ class PackageCallbackList {
   int execute(int id, Args... args) { return callbackMap[id].execute(args...); }
 
  protected:
-  std::map<int, List<Args...>> callbackMap;
+  std::unordered_map<int, List<Args...>> callbackMap;
 };
 
 template <typename T>
 using MeshPackageCallbackList =
-    PackageCallbackList<protocol::VariantBase*, std::shared_ptr<T>, uint32_t>;
+    PackageCallbackList<VariantBase*, std::shared_ptr<T>, uint32_t>;
 }  // namespace callback
 }  // namespace painlessmesh
 

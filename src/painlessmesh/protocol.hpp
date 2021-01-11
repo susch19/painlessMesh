@@ -8,6 +8,8 @@
 
 #include "Arduino.h"
 #include "painlessmesh/configuration.hpp"
+#include "serializer.hpp"
+// #include "variant.hpp"
 
 namespace painlessmesh {
 
@@ -45,16 +47,42 @@ enum TimeType {
   TIME_REPLY
 };
 
+struct ProtocolHeader {
+  uint16_t type;
+  uint16_t routing;
+  uint32_t dest;
+
+  // ProtocolHeader() {}
+  // ProtocolHeader(uint16_t type) : type(type) {}
+  // ProtocolHeader(uint16_t type, uint16_t routing, uint32_t dest)
+  //     : type(type), routing(routing), dest(dest) {}
+
+  static ProtocolHeader deserializeFrom(const std::string& str, int& offset) {
+    ProtocolHeader header;
+    SerializeHelper::deserialize(&header, str, offset);
+    return header;
+  }
+
+  void serializeTo(std::string& str, int& offset) {
+    SerializeHelper::serialize(this, str, offset);
+  }
+
+} __attribute__((packed));
+
 class PackageInterface {
  protected:
-  uint16_t type;
   // uint32_t dest = 0;
-  PackageInterface(uint16_t type) : type(type) {}
+  PackageInterface(ProtocolHeader header) : header(header) {}
+
+  PackageInterface(uint16_t type) { header.type = type; }
+
   // PackageInterface(Type type, uint32_t dest) : type(type), dest(dest) {}
 
  public:
-  virtual uint32_t size() { return sizeof(type); };
-  uint16_t packageType() { return type; }
+  ProtocolHeader header;
+  virtual uint32_t size() { return sizeof(header); };
+  uint16_t packageType() { return header.type; }
+  virtual ~PackageInterface() {}
 };
 
 /**
@@ -64,11 +92,10 @@ class PackageInterface {
  */
 class Single : public PackageInterface {
  public:
-  uint32_t dest;
   uint32_t from;
   std::string msg = "";
 
-  Single() : PackageInterface(SINGLE) {}
+  Single(ProtocolHeader header) : PackageInterface(header) {}
 
   Single(uint32_t fromID, uint32_t destID, std::string& message)
       : PackageInterface(SINGLE) {
@@ -77,9 +104,11 @@ class Single : public PackageInterface {
   }
 
   uint32_t size() override {
-    return PackageInterface::size() + sizeof(from) + sizeof(dest) +
-           msg.length();
+    return PackageInterface::size() + sizeof(from) + msg.length();
   }
+
+ protected:
+  Single(int type) : PackageInterface(type) {}
 };
 
 /**
@@ -89,12 +118,10 @@ class Broadcast : public Single {
  public:
   using Single::Single;
 
-  Broadcast() { type = BROADCAST; }
+  Broadcast(ProtocolHeader header) : Single(header) {}
 
-  Broadcast(uint32_t fromID, std::string& message) : Broadcast() {
-    from = fromID;
-    dest = 0;
-    msg = message;
+  Broadcast(uint32_t fromID, std::string& message) : Single(from, 0, message) {
+    header.type = BROADCAST;
   }
 };
 
@@ -105,6 +132,7 @@ class NodeTree : public PackageInterface {
   std::list<NodeTree> subs;
 
   NodeTree(Type type = NONE) : PackageInterface(type) {}
+  NodeTree(ProtocolHeader header) : PackageInterface(header) {}
 
   NodeTree(uint32_t nodeID, bool iAmRoot, Type type = NONE)
       : PackageInterface(type) {
@@ -133,8 +161,12 @@ class NodeTree : public PackageInterface {
   TSTRING toString(bool pretty = false);
 
   uint32_t size() override {
-    return PackageInterface::size() + sizeof(nodeId) + sizeof(root) +
-           subs.size();
+    uint32_t size = PackageInterface::size() + sizeof(nodeId) + sizeof(root);
+    size += sizeof(subs.size());
+    for (auto&& i : subs) {
+      size += i.size();
+    }
+    return size;
   }
 
   void clear() {
@@ -147,29 +179,28 @@ class NodeTree : public PackageInterface {
 class NodeSync : public NodeTree {
  public:
   uint32_t from;
-  uint32_t dest;
 
   NodeSync(Type type = NONE) : NodeTree(type) {}
+  NodeSync(ProtocolHeader header) : NodeTree(header) {}
   NodeSync(uint32_t fromID, uint32_t destID, std::list<NodeTree> subTree,
            bool iAmRoot = false, Type type = NONE)
       : NodeSync(type) {
     from = fromID;
-    dest = destID;
+    header.dest = destID;
     subs = subTree;
     nodeId = fromID;
     root = iAmRoot;
   }
 
   bool operator==(const NodeSync& b) const {
-    if (!(this->from == b.from && this->dest == b.dest)) return false;
+    if (!(this->from == b.from && this->header.dest == b.header.dest))
+      return false;
     return NodeTree::operator==(b);
   }
 
   bool operator!=(const NodeSync& b) const { return !this->operator==(b); }
 
-  uint32_t size() override {
-    return NodeTree::size() + sizeof(from) + sizeof(dest);
-  }
+  uint32_t size() override { return NodeTree::size() + sizeof(from); }
 };
 
 /**
@@ -177,7 +208,8 @@ class NodeSync : public NodeTree {
  */
 class NodeSyncRequest : public NodeSync {
  public:
-  NodeSyncRequest() : NodeSync(NODE_SYNC_REQUEST) {}
+  // NodeSyncRequest() : NodeSync(NODE_SYNC_REQUEST) {}
+  NodeSyncRequest(ProtocolHeader header) : NodeSync(header) {}
   NodeSyncRequest(uint32_t fromID, uint32_t destID, std::list<NodeTree> subTree,
                   bool iAmRoot = false)
       : NodeSync(fromID, destID, subTree, iAmRoot, NODE_SYNC_REQUEST) {}
@@ -188,17 +220,18 @@ class NodeSyncRequest : public NodeSync {
  */
 class NodeSyncReply : public NodeSync {
  public:
-  NodeSyncReply() : NodeSync(NODE_SYNC_REPLY) {}
+  // NodeSyncReply() : NodeSync(NODE_SYNC_REPLY) {}
+  NodeSyncReply(ProtocolHeader header) : NodeSync(header) {}
   NodeSyncReply(uint32_t fromID, uint32_t destID, std::list<NodeTree> subTree,
                 bool iAmRoot = false)
       : NodeSync(fromID, destID, subTree, iAmRoot, NODE_SYNC_REPLY) {}
 };
 
 struct time_sync_msg_t {
-  int type = TIME_SYNC_ERROR;
-  uint32_t t0 = 0;
-  uint32_t t1 = 0;
-  uint32_t t2 = 0;
+  int16_t type;  // = TIME_SYNC_ERROR;
+  uint32_t t0;
+  uint32_t t1;
+  uint32_t t2;
 } __attribute__((packed));
 
 /**
@@ -206,21 +239,25 @@ struct time_sync_msg_t {
  */
 class TimeSync : public PackageInterface {
  public:
-  uint32_t dest;
   uint32_t from;
   time_sync_msg_t msg;
 
-  TimeSync() : PackageInterface(TIME_SYNC) {}
+  TimeSync(ProtocolHeader header) : PackageInterface(header) {
+    msg.type = TIME_SYNC_ERROR;
+  }
+
+  TimeSync() : PackageInterface(TIME_SYNC) { msg.type = TIME_SYNC_ERROR; }
+  TimeSync(int type) : PackageInterface(type) { msg.type = TIME_SYNC_ERROR; }
 
   TimeSync(uint32_t fromID, uint32_t destID) : TimeSync() {
     from = fromID;
-    dest = destID;
+    header.dest = destID;
     msg.type = TIME_SYNC_REQUEST;
   }
 
   TimeSync(uint32_t fromID, uint32_t destID, uint32_t t0) : TimeSync() {
     from = fromID;
-    dest = destID;
+    header.dest = destID;
     msg.type = TIME_REQUEST;
     msg.t0 = t0;
   }
@@ -228,7 +265,7 @@ class TimeSync : public PackageInterface {
   TimeSync(uint32_t fromID, uint32_t destID, uint32_t t0, uint32_t t1)
       : TimeSync() {
     from = fromID;
-    dest = destID;
+    header.dest = destID;
     msg.type = TIME_REPLY;
     msg.t0 = t0;
     msg.t1 = t1;
@@ -238,7 +275,7 @@ class TimeSync : public PackageInterface {
            uint32_t t2)
       : TimeSync() {
     from = fromID;
-    dest = destID;
+    header.dest = destID;
     msg.type = TIME_REPLY;
     msg.t0 = t0;
     msg.t1 = t1;
@@ -251,7 +288,8 @@ class TimeSync : public PackageInterface {
   void reply(uint32_t newT0) {
     msg.t0 = newT0;
     ++msg.type;
-    std::swap(from, dest);
+
+    swapFromAndDest();
   }
 
   /**
@@ -261,11 +299,18 @@ class TimeSync : public PackageInterface {
     msg.t1 = newT1;
     msg.t2 = newT2;
     ++msg.type;
-    std::swap(from, dest);
+    swapFromAndDest();
   }
 
   uint32_t size() override {
-    return PackageInterface::size() + sizeof(dest) + sizeof(from) + sizeof(msg);
+    return PackageInterface::size() + sizeof(from) + sizeof(msg);
+  }
+
+ private:
+  void swapFromAndDest() {
+    auto dest = header.dest;
+    header.dest = from;
+    from = dest;
   }
 };
 
@@ -276,161 +321,10 @@ class TimeDelay : public TimeSync {
  public:
   int type = TIME_DELAY;
   using TimeSync::TimeSync;
+
+  TimeDelay() : TimeSync(TIME_DELAY) {}
+  TimeDelay(ProtocolHeader header) : TimeSync(header) {}
 };
-
-template <class T, typename = void>
-struct get_dest {
-  uint32_t dest(T* package) { return 0; }
-};
-
-template <class T>
-struct get_dest<T,
-                typename std::enable_if<std::is_same<
-                    uint32_t, decltype(std::declval<T>().dest)>::value>::type> {
-  uint32_t dest(T* package) { return package->dest; }
-};
-
-template <class T, typename = void>
-struct get_routing {
-  router::Type routing(T* package) {
-    auto type = package->packageType();
-    if (type == SINGLE || type == TIME_DELAY) return router::SINGLE;
-    if (type == BROADCAST) return router::BROADCAST;
-    if (type == NODE_SYNC_REQUEST || type == NODE_SYNC_REPLY ||
-        type == TIME_SYNC)
-      return router::NEIGHBOUR;
-    return router::ROUTING_ERROR;
-  }
-};
-
-template <class T>
-struct get_routing<
-    T, typename std::enable_if<std::is_same<
-           uint32_t, decltype(std::declval<T>().routing)>::value>::type> {
-  router::Type routing(T* package) { return package->routing; }
-};
-
-class VariantBase {
- public:
-  virtual void serializeTo(std::string& str) {}
-  virtual void deserializeFrom(const std::string& str) {}
-};
-
-/**
- * Can store any package variant
- *
- * Internally stores packages as a JsonObject. Main use case is to convert
- * different packages from and to Json (using ArduinoJson).
- */
-template <typename T>
-class TypedVariantBase : public VariantBase {
- public:
-  T* package;
-  /**
-   * Create Variant object from any package implementing PackageInterface
-   */
-  // Variant(const PackageInterface* pkg) { package =
-  // std::unique_ptr<PackageInterface>(pkg); }
-
-  TypedVariantBase(T& single) { package = &single; }
-
-  /**
-   * Whether this package is of the given type
-   */
-  inline bool is() { return false; }
-
-  /**
-   * Convert Variant to the given type
-   */
-  inline T* to() { return package; }
-
-  /**
-   * Return package type
-   */
-  int type() { return package->packageType(); }
-
-  /**
-   * Package routing method
-   */
-  router::Type routing() { return get_routing<T>::routing(package); }
-
-  /**
-   * Destination node of the package
-   */
-  uint32_t dest() { return get_dest<T>::dest(package); }
-
-  /**
-   * Print a variant to a string
-   *
-   * @return A json representation of the string
-   */
-};
-
-template <class T>
-class Variant : public TypedVariantBase<T> {
- public:
-  Variant(T& single) : TypedVariantBase<T>(single) {}
-};
-
-template <>
-class Variant<Single> : public TypedVariantBase<Single> {
- public:
-  void serializeTo(std::string& str) override {}
-  void deserializeFrom(const std::string& str) override {}
-};
-
-// template <>
-// inline bool Variant::is<Single>() {
-//   return package->packageType() == SINGLE;
-// }
-
-// template <>
-// inline bool Variant::is<Broadcast>() {
-//   return package->packageType() == BROADCAST;
-// }
-
-// template <>
-// inline bool Variant::is<NodeSyncReply>() {
-//   return package->packageType() == NODE_SYNC_REPLY;
-// }
-
-// template <>
-// inline bool Variant::is<NodeSyncRequest>() {
-//   return package->packageType() == NODE_SYNC_REQUEST;
-// }
-
-// template <>
-// inline bool Variant::is<TimeSync>() {
-//   return package->packageType() == TIME_SYNC;
-// }
-
-// template <>
-// inline bool Variant::is<TimeDelay>() {
-//   return package->packageType() == TIME_DELAY;
-// }
-
-// inline TSTRING NodeTree::toString(bool pretty) {
-//   TSTRING str;
-//   auto variant = Variant(*this);
-//   variant.printTo(str, pretty);
-//   return str;
-// }
-
-// typedef PackageInterface* (*create_ptr)();
-class PackageTypeProvider {
- public:
-  template <class T>
-  static void add(int typeId) {
-    map.emplace(typeId, []() { return new T(); });
-  };
-
-  static PackageInterface* get(int typeId) { return map[typeId](); }
-
- protected:
-  static std::unordered_map<int, std::function<PackageInterface*()>> map;
-};
-
-void test() { PackageTypeProvider::add<Single>(10); }
 
 }  // namespace protocol
 }  // namespace painlessmesh

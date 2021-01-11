@@ -71,11 +71,17 @@ void MeshConnection::initTCPCallbacks() {
         if (self->mesh->semaphoreTake()) {
           Log(COMMUNICATION, "onData(): fromId=%u\n", self ? self->nodeId : 0);
 
+          //if(data[0-1] > len, if package 2)
+          //auto variable = receiveBuffer.popFront();
+          //variable += data;
+        
+          
           self->receiveBuffer.push(static_cast<const char *>(data), len,
                                    shared_buffer);
 
           // Signal that we are done
           self->client->ack(len);
+          //do nothing
           self->readBufferTask.forceNextIteration();
 
           self->mesh->semaphoreGive();
