@@ -3,6 +3,8 @@
 
 #include <string>
 #include <type_traits>
+#include "plugin/typetraitsExtension.hpp"
+#include "nodeTree.hpp"
 
 namespace painlessmesh {
 struct SerializeHelper {
@@ -24,7 +26,7 @@ struct InternalSerializer {
 
 template <class T>
 struct InternalSerializer<
-    T, typename std::enable_if<std::is_pod<T>::value>::type> {
+    T, typename std::enable_if<std::is_trivially_copyable<T>::value>::type> {
   static void deserialize(T* dest, const std::string& str, int& offset) {
     memcpy(dest, &str[offset], sizeof(T));
     offset += sizeof(T);
@@ -37,7 +39,8 @@ struct InternalSerializer<
 };
 template <>
 struct InternalSerializer<std::string, void> {
-  static void deserialize(std::string* dest, const std::string& str, int& offset) {
+  static void deserialize(std::string* dest, const std::string& str,
+                          int& offset) {
     uint16_t length;
     SerializeHelper::deserialize(&length, str, offset);
     dest->assign(&str[offset], static_cast<size_t>(length));
@@ -52,14 +55,45 @@ struct InternalSerializer<std::string, void> {
   }
 };
 
-  template <class T>
-  void SerializeHelper::deserialize(T* dest, const std::string& str, int& offset) {
-    InternalSerializer<T>::deserialize(dest, str, offset);
+template <>
+struct InternalSerializer<protocol::NodeTree, void> {
+  static void deserialize(protocol::NodeTree* dest, const std::string& str,
+                          int& offset) {
+    SerializeHelper::deserialize(&dest->nodeId, str, offset);
+    SerializeHelper::deserialize(&dest->root, str, offset);
+
+    uint16_t length;
+    SerializeHelper::deserialize(&length, str, offset);
+    dest->subs.resize(length);
+
+    for (auto&& i : dest->subs) {
+      SerializeHelper::deserialize(&i, str, offset);
+    }
   }
-  template <class T>
-  void SerializeHelper::serialize(T* source, std::string& str, int& offset) {
-    InternalSerializer<T>::serialize(source, str, offset);
+
+  static void serialize(protocol::NodeTree* source, std::string& str,
+                        int& offset) {
+    SerializeHelper::serialize(&source->nodeId, str, offset);
+    SerializeHelper::serialize(&source->root, str, offset);
+
+    uint16_t length = source->subs.size();
+    SerializeHelper::serialize(&length, str, offset);
+
+    for (auto&& i : source->subs) {
+      SerializeHelper::serialize(&i, str, offset);
+    }
   }
+};
+
+template <class T>
+void SerializeHelper::deserialize(T* dest, const std::string& str,
+                                  int& offset) {
+  InternalSerializer<T>::deserialize(dest, str, offset);
+}
+template <class T>
+void SerializeHelper::serialize(T* source, std::string& str, int& offset) {
+  InternalSerializer<T>::serialize(source, str, offset);
+}
 
 // struct SerializeHelper {
 //   template <class T>

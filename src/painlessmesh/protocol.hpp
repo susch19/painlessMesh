@@ -9,6 +9,7 @@
 #include "Arduino.h"
 #include "painlessmesh/configuration.hpp"
 #include "serializer.hpp"
+#include "nodeTree.hpp"
 // #include "variant.hpp"
 
 namespace painlessmesh {
@@ -72,6 +73,7 @@ struct ProtocolHeader {
 class PackageInterface {
  protected:
   // uint32_t dest = 0;
+
   PackageInterface(ProtocolHeader header) : header(header) {}
 
   PackageInterface(uint16_t type) { header.type = type; }
@@ -125,63 +127,14 @@ class Broadcast : public Single {
   }
 };
 
-class NodeTree : public PackageInterface {
- public:
-  uint32_t nodeId = 0;
-  bool root = false;
-  std::list<NodeTree> subs;
 
-  NodeTree(Type type = NONE) : PackageInterface(type) {}
-  NodeTree(ProtocolHeader header) : PackageInterface(header) {}
 
-  NodeTree(uint32_t nodeID, bool iAmRoot, Type type = NONE)
-      : PackageInterface(type) {
-    nodeId = nodeID;
-    root = iAmRoot;
-  }
-
-  bool operator==(const NodeTree& b) const {
-    if (!(this->nodeId == b.nodeId && this->root == b.root &&
-          this->subs.size() == b.subs.size()))
-      return false;
-    auto itA = this->subs.begin();
-    auto itB = b.subs.begin();
-    for (size_t i = 0; i < this->subs.size(); ++i) {
-      if ((*itA) != (*itB)) {
-        return false;
-      }
-      ++itA;
-      ++itB;
-    }
-    return true;
-  }
-
-  bool operator!=(const NodeTree& b) const { return !this->operator==(b); }
-
-  TSTRING toString(bool pretty = false);
-
-  uint32_t size() override {
-    uint32_t size = PackageInterface::size() + sizeof(nodeId) + sizeof(root);
-    size += sizeof(subs.size());
-    for (auto&& i : subs) {
-      size += i.size();
-    }
-    return size;
-  }
-
-  void clear() {
-    nodeId = 0;
-    subs.clear();
-    root = false;
-  }
-};
-
-class NodeSync : public NodeTree {
+class NodeSync : public NodeTree, public PackageInterface  {
  public:
   uint32_t from;
 
-  NodeSync(Type type = NONE) : NodeTree(type) {}
-  NodeSync(ProtocolHeader header) : NodeTree(header) {}
+  NodeSync(Type type = NONE) : PackageInterface(type) {}
+  NodeSync(ProtocolHeader header) :PackageInterface(header) {}
   NodeSync(uint32_t fromID, uint32_t destID, std::list<NodeTree> subTree,
            bool iAmRoot = false, Type type = NONE)
       : NodeSync(type) {
@@ -206,7 +159,7 @@ class NodeSync : public NodeTree {
 /**
  * NodeSyncRequest package
  */
-class NodeSyncRequest : public NodeSync {
+class NodeSyncRequest : public NodeSync  {
  public:
   // NodeSyncRequest() : NodeSync(NODE_SYNC_REQUEST) {}
   NodeSyncRequest(ProtocolHeader header) : NodeSync(header) {}
@@ -228,10 +181,10 @@ class NodeSyncReply : public NodeSync {
 };
 
 struct time_sync_msg_t {
-  int16_t type;  // = TIME_SYNC_ERROR;
-  uint32_t t0;
-  uint32_t t1;
-  uint32_t t2;
+  int16_t type = TIME_SYNC_ERROR;
+  uint32_t t0 =0;
+  uint32_t t1 =0;
+  uint32_t t2=0;
 } __attribute__((packed));
 
 /**
@@ -243,11 +196,10 @@ class TimeSync : public PackageInterface {
   time_sync_msg_t msg;
 
   TimeSync(ProtocolHeader header) : PackageInterface(header) {
-    msg.type = TIME_SYNC_ERROR;
   }
 
-  TimeSync() : PackageInterface(TIME_SYNC) { msg.type = TIME_SYNC_ERROR; }
-  TimeSync(int type) : PackageInterface(type) { msg.type = TIME_SYNC_ERROR; }
+  TimeSync() : PackageInterface(TIME_SYNC) { }
+  TimeSync(int type) : PackageInterface(type) {  }
 
   TimeSync(uint32_t fromID, uint32_t destID) : TimeSync() {
     from = fromID;
@@ -319,7 +271,6 @@ class TimeSync : public PackageInterface {
  */
 class TimeDelay : public TimeSync {
  public:
-  int type = TIME_DELAY;
   using TimeSync::TimeSync;
 
   TimeDelay() : TimeSync(TIME_DELAY) {}

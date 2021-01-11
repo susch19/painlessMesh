@@ -140,9 +140,9 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
   auto variant = PackageTypeProvider::get(header);
 
   auto calls = cbl.execute(header.type, variant.get(), connection, receivedAt); //VariantBase*, std::shared_ptr<T>, uint32_t
-  // if (calls == 0)
-  //   Log(DEBUG, "routePackage(): No callbacks executed; %u, %s\n",
-  //       variant->type(), pkg.c_str());
+  if (calls == 0)
+    Log(DEBUG, "routePackage(): No callbacks executed; %u\n",
+        variant->type());
 }
 
 template <class T, class U>
