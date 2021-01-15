@@ -122,28 +122,37 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
                   TSTRING pkg, callback::MeshPackageCallbackList<T> cbl,
                   uint32_t receivedAt) {
   using namespace logger;
-  Log(COMMUNICATION, "routePackage(): Recvd from %u: %s\n", connection->nodeId,
-      pkg.c_str());
+
+  Log(COMMUNICATION, "routePackage(): Recvd from %u: %zu\n", connection->nodeId,
+      pkg.size());
 
   int offset = 0;
   protocol::ProtocolHeader header;
   header.deserializeFrom(pkg, offset);
 
+  Log(COMMUNICATION,
+      "routePackage(): Recvd header type:%zu, route:%zu, dest:%zu\n",
+      header.type, header.routing, header.dest);
   if (header.routing == SINGLE && header.dest != layout.getNodeId()) {
     // Send on without further processing
+    Log(COMMUNICATION,
+        "routePackage(): Just Route package type:%zu, route:%zu, dest:%zu\n",
+        header.type, header.routing, header.dest);
     send<T>(pkg, header, layout);
     return;
   } else if (header.routing == BROADCAST) {
+  Log(COMMUNICATION, "routePackage(): Broadcast Package type:%zu, route:%zu, dest:%zu\n", header.type, header.routing, header.dest);
     broadcast<T>(pkg, layout, connection->nodeId);
   }
 
   auto variant = PackageTypeProvider::get(header);
-
+  variant->deserializeFrom(pkg);
+  Log(COMMUNICATION, "routePackage(): Serialized to variant header type:%zu, route:%zu, dest:%zu\n", variant->type(), header.routing, header.dest);
   auto calls =
       cbl.execute(header.type, variant.get(), connection,
                   receivedAt);  // VariantBase*, std::shared_ptr<T>, uint32_t
-  if (calls == 0)
-    Log(DEBUG, "routePackage(): No callbacks executed; %u\n", variant->type());
+  // Log(DEBUG, "routePackage(): %zu callbacks executed; %zu\n", calls,
+  //     variant->type());
 }
 
 template <class T, class U>

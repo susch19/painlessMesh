@@ -8,6 +8,7 @@
 #include "painlessmesh/plugin.hpp"
 #include "painlessmesh/protocol.hpp"
 #include "painlessmesh/tcp.hpp"
+// #include "GDBStub.h"
 
 #ifdef PAINLESSMESH_ENABLE_OTA
 #include "painlessmesh/ota.hpp"
@@ -37,20 +38,20 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
       NODE_SYNC_REPLY = 6,
       BROADCAST = 8,  // application data for everyone
       SINGLE = 9      // application data for a single node,*/
-
     PackageTypeProvider::add<protocol::Single>(9);
     PackageTypeProvider::add<protocol::Broadcast>(8);
     PackageTypeProvider::add<protocol::NodeSyncReply>(6);
     PackageTypeProvider::add<protocol::NodeSyncRequest>(5);
     PackageTypeProvider::add<protocol::TimeSync>(4);
     PackageTypeProvider::add<protocol::TimeDelay>(3);
-    PackageTypeProvider::add<plugin::BroadcastPackage>(3);
-    PackageTypeProvider::add<plugin::SinglePackage>(3);
+    // PackageTypeProvider::add<plugin::An>(10);
+    // PackageTypeProvider::add<plugin::SinglePackage>(3);
 
     using namespace logger;
     if (!isExternalScheduler) {
       mScheduler = new Scheduler();
     }
+
     this->nodeId = id;
 
 #ifdef ESP32
@@ -178,6 +179,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     if (semaphoreTake()) {
       mScheduler->execute();
       semaphoreGive();
+
     }
     return;
   }
@@ -205,13 +207,16 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    */
   bool sendBroadcast(TSTRING msg, bool includeSelf = false) {
     using namespace logger;
-    Log(COMMUNICATION, "sendBroadcast(): msg=%s\n", msg.c_str());
-    auto pkg = painlessmesh::protocol::Broadcast(this->nodeId, 0, msg);
+    Log(COMMUNICATION, "sendBroadcast(): msg length=%zu\n", msg.size());
+    auto pkg = painlessmesh::protocol::Broadcast(this->nodeId, msg);
     auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
     if (success && includeSelf) {
+      // gdb_do_break();
       auto variant = Variant<painlessmesh::protocol::Broadcast>(&pkg);
-      this->callbackList.execute(pkg.header.type, static_cast<VariantBase*>(&variant), nullptr, 0);
+      this->callbackList.execute(
+          pkg.header.type, static_cast<VariantBase *>(&variant), nullptr, 0);
     }
+    // gdb_do_break();
     if (success > 0) return true;
     return false;
   }
@@ -384,7 +389,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
     return plugin::PackageHandler<T>::addTask((*this->mScheduler), aCallback);
   }
 
-  ~Mesh() {
+  virtual ~Mesh() {
     this->stop();
     if (!isExternalScheduler) delete mScheduler;
   }
@@ -392,6 +397,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
  protected:
   void setScheduler(Scheduler *baseScheduler) {
     this->mScheduler = baseScheduler;
+    // gdb_do_break();
     isExternalScheduler = true;
   }
 

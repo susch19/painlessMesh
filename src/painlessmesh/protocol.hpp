@@ -49,14 +49,27 @@ enum TimeType {
 };
 
 struct ProtocolHeader {
-  uint16_t type;
-  uint16_t routing;
-  uint32_t dest;
+  uint16_t type = 0xffff;
+  uint16_t routing = 0xffff;
+  uint32_t dest = 0xffffffff;
 
-  // ProtocolHeader() {}
+  // ProtocolHeader(std::initializer_list<ProtocolHeader> initializerList) = default;
+
+  ProtocolHeader() {}
   // ProtocolHeader(uint16_t type) : type(type) {}
-  // ProtocolHeader(uint16_t type, uint16_t routing, uint32_t dest)
-  //     : type(type), routing(routing), dest(dest) {}
+  ProtocolHeader(uint16_t type, uint16_t routing, uint32_t dest)
+      : type(type), routing(routing), dest(dest) {}
+
+  friend bool operator==(const ProtocolHeader& header,
+                         const ProtocolHeader& header1) {
+    return header.type == header1.type && header.routing == header1.routing &&
+           header.dest == header1.dest;
+  }
+
+  friend bool operator!=(const ProtocolHeader& header,
+                         const ProtocolHeader& header1) {
+    return !(header == header1);
+  }
 
   void deserializeFrom(const std::string& str, int& offset) {
     SerializeHelper::deserialize(this, str, offset);
@@ -111,6 +124,15 @@ class Single : public PackageInterface {
     return PackageInterface::size() + sizeof(from) + msg.length();
   }
 
+  friend bool operator==(const Single& single, const Single& single1) {
+    return single.from == single1.from && single.header == single1.header &&
+           single.msg == single1.msg;
+  }
+
+  friend bool operator!=(const Single& single, const Single& single1) {
+    return !(single == single1);
+  }
+
  protected:
   Single(int type) : PackageInterface(type, router::SINGLE) {}
 };
@@ -120,13 +142,21 @@ class Single : public PackageInterface {
  */
 class Broadcast : public Single {
  public:
-  using Single::Single;
 
   Broadcast(ProtocolHeader header) : Single(header) {}
 
   Broadcast(uint32_t fromID, std::string& message) : Single(from, 0, message) {
     header.type = BROADCAST;
-    header.type = router::BROADCAST;
+    header.routing = router::BROADCAST;
+  }
+
+    friend bool operator==(const Broadcast& broadcast, const Broadcast& broadcast1) {
+    return broadcast.from == broadcast1.from && broadcast.header == broadcast1.header &&
+           broadcast.msg == broadcast1.msg;
+  }
+
+  friend bool operator!=(const Broadcast& broadcast, const Broadcast& broadcast1) {
+    return !(broadcast == broadcast1);
   }
 };
 

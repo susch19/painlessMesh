@@ -128,7 +128,7 @@ class PackageHandler : public layout::Layout<T> {
     taskList.clear();
   }
 
-  ~PackageHandler() {
+  virtual ~PackageHandler() {
     if (taskList.size() > 0)
       Log(logger::ERROR,
           "~PackageHandler(): Always call PackageHandler::stop(scheduler) "

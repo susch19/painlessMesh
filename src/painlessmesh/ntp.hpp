@@ -11,6 +11,7 @@
 
 #include "Arduino.h"
 
+#include <GDBStub.h>
 #include "painlessmesh/callback.hpp"
 #include "painlessmesh/logger.hpp"
 #include "painlessmesh/router.hpp"
@@ -31,7 +32,6 @@ class MeshTime {
    * protocol](https://gitlab.com/painlessMesh/painlessMesh/wikis/mesh-protocol#time-sync)
    */
   uint32_t getNodeTime() { return micros() + timeOffset; }
-
  protected:
   uint32_t timeOffset = 0;
 };
@@ -97,6 +97,7 @@ void initTimeSync(protocol::NodeTree mesh, std::shared_ptr<T> connection,
 template <class T, class U>
 void handleTimeSync(T& mesh, painlessmesh::protocol::TimeSync* timeSync,
                     std::shared_ptr<U> conn, uint32_t receivedAt) {
+  // Serial.printf("Empty Variable: %zu\n", mesh.timeOffsetEmpty);
   switch (timeSync->msg.type) {
     case (painlessmesh::protocol::TIME_SYNC_ERROR):
       Log(logger::ERROR,
@@ -131,8 +132,10 @@ void handleTimeSync(T& mesh, painlessmesh::protocol::TimeSync* timeSync,
           conn->nodeId);
       int32_t offset = painlessmesh::ntp::clockOffset(
           timeSync->msg.t0, timeSync->msg.t1, timeSync->msg.t2, receivedAt);
+      // auto offset = 10000;
+      // gdb_do_break();
       mesh.timeOffset += offset;  // Accumulate offset
-
+      // gdb_do_break();
       // flag all connections for re-timeSync
       if (mesh.nodeTimeAdjustedCallback) {
         mesh.nodeTimeAdjustedCallback(offset);
@@ -170,7 +173,6 @@ void handleTimeSync(T& mesh, painlessmesh::protocol::TimeSync* timeSync,
   }
   Log(logger::S_TIME, "handleTimeSync(): ----------------------------------\n");
 }
-
 
 template <class T, class U>
 void handleTimeDelay(T& mesh, painlessmesh::protocol::TimeDelay* timeDelay,
@@ -211,7 +213,6 @@ void handleTimeDelay(T& mesh, painlessmesh::protocol::TimeDelay* timeDelay,
           "handleTimeDelay(): Unknown timeSyncMessageType received. Ignoring "
           "for now.\n");
   }
-
   Log(logger::S_TIME, "handleTimeSync(): ----------------------------------\n");
 }
 

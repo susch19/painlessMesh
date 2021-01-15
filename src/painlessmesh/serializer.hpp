@@ -3,9 +3,11 @@
 
 #include <string>
 #include <type_traits>
-#include "plugin/typetraitsExtension.hpp"
 #include "nodeTree.hpp"
-
+#include "plugin/typetraitsExtension.hpp"
+#ifdef ESP8266
+// #include <GDBStub.h>
+#endif
 namespace painlessmesh {
 struct SerializeHelper {
   template <class T>
@@ -28,13 +30,11 @@ template <class T>
 struct InternalSerializer<
     T, typename std::enable_if<std::is_trivially_copyable<T>::value>::type> {
   static void deserialize(T* dest, const std::string& str, int& offset) {
-    Serial.println(offset);
     memcpy(dest, &str[offset], sizeof(T));
     offset += sizeof(T);
-    Serial.println(offset);
   }
   static void serialize(T* source, std::string& str, int& offset) {
-    str.reserve(offset + sizeof(T));
+    str.resize(str.size() + sizeof(T));
     memcpy(&str[offset], source, sizeof(T));
     offset += sizeof(T);
   }
@@ -49,9 +49,13 @@ struct InternalSerializer<std::string, void> {
     offset += length;
   }
   static void serialize(std::string* source, std::string& str, int& offset) {
+#ifdef ESP8266
+    // gdb_do_break();
+#endif
     uint16_t length = source->size();
-    str.reserve(length + sizeof(int));
+    str.reserve(str.size() + length + sizeof(length));  
     SerializeHelper::serialize(&length, str, offset);
+    str.resize(str.size() + length + sizeof(length));  
     memcpy(&str[offset], &(*source)[0], static_cast<size_t>(length));
     offset += length;
   }

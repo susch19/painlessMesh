@@ -143,6 +143,7 @@ class Variant<protocol::NodeSyncRequest>
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
     auto node = static_cast<protocol::NodeTree*>(package);
+    // gdb_do_break();
     SerializeHelper::serialize(node, str, offset);
   }
   void deserializeFrom(const std::string& str) override {
