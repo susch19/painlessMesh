@@ -4,7 +4,10 @@
 #include <algorithm>
 #include <map>
 
-#include "GDBStub.h"
+#if defined(DebugWithDebugger) && defined(ESP8266)
+#include <GDBStub.h>
+#endif
+
 #include "painlessmesh/callback.hpp"
 #include "painlessmesh/layout.hpp"
 #include "painlessmesh/logger.hpp"

@@ -13,8 +13,7 @@
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
 using namespace painlessmesh;
-#define DebugWithDebugger
-#ifdef DebugWithDebugger
+#if defined(DebugWithDebugger) && defined(ESP8266)
 #include "GDBStub.h"
 #endif
 

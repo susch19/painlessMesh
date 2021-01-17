@@ -4,7 +4,7 @@
 #include "nodeTree.hpp"
 #include "typetraitsExtension.hpp"
 #include "serializer.hpp"
-#ifdef ESP8266
+#if defined(DebugWithDebugger) && defined(ESP8266)
 #include <GDBStub.h>
 #endif
 

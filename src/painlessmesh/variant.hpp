@@ -3,8 +3,10 @@
 
 #include <string>
 
-#include "protocol.hpp"
-#include "GDBStub.h"
+#if defined(DebugWithDebugger) && defined(ESP8266)
+#include <GDBStub.h>
+#endif
+
 #include "serializerExtension.hpp"
 
 namespace painlessmesh {
