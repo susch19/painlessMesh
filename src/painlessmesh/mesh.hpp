@@ -192,8 +192,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    * @return true if everything works, false if not.
    */
   bool sendSingle(uint32_t destId, TSTRING msg) {
-    Log(logger::COMMUNICATION, "sendSingle(): dest=%u msg=%s\n", destId,
-        msg.c_str());
+    Log(logger::COMMUNICATION, "sendSingle(): dest=%u \n", destId);
     auto single = painlessmesh::protocol::Single(this->nodeId, destId, msg);
     return painlessmesh::router::send(
         single, *(static_cast<layout::Layout<T> *>(this)));

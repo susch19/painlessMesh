@@ -208,8 +208,7 @@ class Variant<plugin::SinglePackage>
  public:
   Variant(plugin::SinglePackage* single, bool cleanup = false)
       : TypedVariantBase<plugin::SinglePackage>(single, cleanup) {}
-  void serializeTo(std::string& str) override {
-    int offset = 0;
+  void serializeTo(std::string& str, int& offset ) override {
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
   }
@@ -226,8 +225,7 @@ class Variant<plugin::BroadcastPackage>
  public:
   Variant(plugin::BroadcastPackage* broadcast, bool cleanup = false)
       : TypedVariantBase<plugin::BroadcastPackage>(broadcast, cleanup) {}
-  void serializeTo(std::string& str) override {
-    int offset = 0;
+  void serializeTo(std::string& str, int& offset ) override {
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
   }
@@ -244,8 +242,7 @@ class Variant<plugin::NeighbourPackage>
  public:
   Variant(plugin::NeighbourPackage* neighbour, bool cleanup = false)
       : TypedVariantBase<plugin::NeighbourPackage>(neighbour, cleanup) {}
-  void serializeTo(std::string& str) override {
-    int offset = 0;
+  void serializeTo(std::string& str, int& offset ) override {
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
   }

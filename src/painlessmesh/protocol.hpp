@@ -117,11 +117,12 @@ class Single : public PackageInterface {
   Single(uint32_t fromID, uint32_t destID, std::string& message)
       : PackageInterface(SINGLE, router::SINGLE) {
     from = fromID;
+    header.dest = destID;
     msg = message;
   }
 
   uint32_t size() override {
-    return PackageInterface::size() + sizeof(from) + msg.length();
+    return PackageInterface::size() + sizeof(from) + sizeof(uint16_t) + msg.size();
   }
 
   friend bool operator==(const Single& single, const Single& single1) {
@@ -145,7 +146,7 @@ class Broadcast : public Single {
 
   Broadcast(ProtocolHeader header) : Single(header) {}
 
-  Broadcast(uint32_t fromID, std::string& message) : Single(from, 0, message) {
+  Broadcast(uint32_t fromID, std::string& message) : Single(fromID, 0, message) {
     header.type = BROADCAST;
     header.routing = router::BROADCAST;
   }

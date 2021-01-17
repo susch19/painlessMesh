@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <map>
 
+#include "GDBStub.h"
 #include "painlessmesh/callback.hpp"
 #include "painlessmesh/layout.hpp"
 #include "painlessmesh/logger.hpp"
@@ -38,14 +39,18 @@ template <class T, class U>
 bool send(T& package, std::shared_ptr<U> conn, bool priority = false) {
   auto variant = Variant<T>(&package);
   std::string msg;
-  variant.serializeTo(msg);
+  msg.resize(package.size() + sizeof(int));
+  int offset =  sizeof(int);
+  variant.serializeTo(msg,offset);
   return conn->addMessage(msg, priority);
 }
 
 template <class T, class U>
 bool send(Variant<T>* variant, std::shared_ptr<U> conn, bool priority = false) {
   TSTRING msg;
-  variant.serializeTo(msg);
+  msg.resize(variant->size() + sizeof(int));
+  int offset =  sizeof(int);
+  variant->serializeTo(msg,offset);
   return conn->addMessage(msg, priority);
 }
 
@@ -53,7 +58,9 @@ template <class T, class U>
 bool send(T& package, layout::Layout<U> layout) {
   auto variant = Variant<T>(&package);
   std::string msg;
-  variant.serializeTo(msg);
+  msg.resize(package.size() + sizeof(int));
+  int offset =  sizeof(int);
+  variant.serializeTo(msg,offset);
   auto conn = findRoute<U>(layout, variant.package->header.dest);
   if (conn) return conn->addMessage(msg);
   return false;
@@ -62,7 +69,10 @@ bool send(T& package, layout::Layout<U> layout) {
 template <class T, class U>
 bool send(Variant<T>* variant, layout::Layout<U> layout) {
   std::string msg;
-  variant->serializeTo(msg);
+
+  msg.resize(variant->size() + sizeof(int));
+  int offset =  sizeof(int);
+  variant->serializeTo(msg,offset);
   auto conn = findRoute<U>(layout, variant.dest());
   if (conn) return conn->addMessage(msg);
   return false;
@@ -79,7 +89,10 @@ template <class T, class U>
 size_t broadcast(T& package, layout::Layout<U> layout, uint32_t exclude) {
   auto variant = Variant<T>(&package);
   std::string msg;
-  variant.serializeTo(msg);
+  msg.resize(package.size() + sizeof(int));
+  int offset =  sizeof(int);
+  variant.serializeTo(msg,offset);
+
   size_t i = 0;
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
@@ -94,7 +107,9 @@ template <class T>
 size_t broadcast(VariantBase* variant, layout::Layout<T> layout,
                  uint32_t exclude) {
   std::string msg;
-  variant->serializeTo(msg);
+  msg.resize(variant->size() + sizeof(int));
+  int offset =  sizeof(int);
+  variant->serializeTo(msg,offset);
   size_t i = 0;
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
@@ -141,13 +156,18 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
     send<T>(pkg, header, layout);
     return;
   } else if (header.routing == BROADCAST) {
-  Log(COMMUNICATION, "routePackage(): Broadcast Package type:%zu, route:%zu, dest:%zu\n", header.type, header.routing, header.dest);
+    Log(COMMUNICATION,
+        "routePackage(): Broadcast Package type:%zu, route:%zu, dest:%zu\n",
+        header.type, header.routing, header.dest);
     broadcast<T>(pkg, layout, connection->nodeId);
   }
 
   auto variant = PackageTypeProvider::get(header);
   variant->deserializeFrom(pkg);
-  Log(COMMUNICATION, "routePackage(): Serialized to variant header type:%zu, route:%zu, dest:%zu\n", variant->type(), header.routing, header.dest);
+  Log(COMMUNICATION,
+      "routePackage(): Serialized to variant header type:%zu, route:%zu, "
+      "dest:%zu\n",
+      variant->type(), header.routing, header.dest);
   auto calls =
       cbl.execute(header.type, variant.get(), connection,
                   receivedAt);  // VariantBase*, std::shared_ptr<T>, uint32_t

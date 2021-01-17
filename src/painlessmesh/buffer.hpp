@@ -16,7 +16,6 @@ namespace buffer {
 // Temporary buffer used by ReceiveBuffer and SentBuffer
 struct temp_buffer_t {
   size_t length = TCP_MSS;
-  char buffer[TCP_MSS];
 };
 
 /**
@@ -30,37 +29,35 @@ class ReceiveBuffer {
   /**
    * Push a message into the buffer
    */
-  void push(const char *cstr, size_t length, temp_buffer_t &buf) {
-    auto data_ptr = cstr;
-    // Serial.println("Push should not have been called!");
-    do {
-      auto len = strnlen(data_ptr, length);
-      do {
-        auto read_len = std::min(len, buf.length);
-        memcpy(buf.buffer, data_ptr, read_len);
-        buf.buffer[read_len] = '\0';
-        auto newBuffer = T(buf.buffer);
-        stringAppend(buffer, newBuffer);
-        len -= newBuffer.length();
-        length -= newBuffer.length();
-        data_ptr += newBuffer.length() * sizeof(char);
-      } while (len > 0);
-      if (length > 0) {
-        // Skip/remove the '\0' between the messages
-        length -= 1;
-        data_ptr += 1 * sizeof(char);
-        if (buffer.length() > 0) {  // skip empty buffers
-          jsonStrings.push_back(buffer);
-          buffer = T();
-        }
-      }
-    } while (length > 0);
-  }
+  // void push(const char *cstr, size_t length, temp_buffer_t &buf) {
+  //   auto data_ptr = cstr;
+  //   // Serial.println("Push should not have been called!");
+  //   do {
+  //     auto len = strnlen(data_ptr, length);
+  //     do {
+  //       auto read_len = std::min(len, buf.length);
+  //       memcpy(buf.buffer, data_ptr, read_len);
+  //       buf.buffer[read_len] = '\0';
+  //       auto newBuffer = T(buf.buffer);
+  //       stringAppend(buffer, newBuffer);
+  //       len -= newBuffer.length();
+  //       length -= newBuffer.length();
+  //       data_ptr += newBuffer.length() * sizeof(char);
+  //     } while (len > 0);
+  //     if (length > 0) {
+  //       // Skip/remove the '\0' between the messages
+  //       length -= 1;
+  //       data_ptr += 1 * sizeof(char);
+  //       if (buffer.length() > 0) {  // skip empty buffers
+  //         jsonStrings.push_back(buffer);
+  //         buffer = T();
+  //       }
+  //     }
+  //   } while (length > 0);
+  // }
 
-  void push(std::string cstr, temp_buffer_t &buf) {
-    auto read_len = std::min(cstr.size(), buf.length);
+  void push(std::string cstr) {
 
-    memcpy(buf.buffer, &cstr[0], read_len);
     jsonStrings.push_back(cstr);
   }
 

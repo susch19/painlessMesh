@@ -31,6 +31,8 @@ class MeshConnection : public painlessmesh::layout::Neighbour,
   bool newConnection = true;
   bool connected = true;
   bool station = true;
+  int lengthRemaining = 0;
+  std::string readBuffer;
 
   // Timestamp to be compared in manageConnections() to check response
   // for timeout
@@ -53,6 +55,7 @@ class MeshConnection : public painlessmesh::layout::Neighbour,
 
   void initTCPCallbacks();
   void initTasks();
+  void pushStdStr(std::string str);
 
   void handleMessage(std::string msg, uint32_t receivedAt);
 

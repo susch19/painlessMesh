@@ -13,6 +13,10 @@
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
 using namespace painlessmesh;
+#define DebugWithDebugger
+#ifdef DebugWithDebugger
+#include "GDBStub.h"
+#endif
 
 //#include "lwip/priv/tcpip_priv.h"
 
@@ -69,29 +73,48 @@ void MeshConnection::initTCPCallbacks() {
                                         void *data, size_t len) {
         using namespace logger;
         if (self->mesh->semaphoreTake()) {
-          Log(COMMUNICATION, "Recieved Length: %zu\n", len);
-          painlessmesh::protocol::ProtocolHeader head = {};
+          Log(COMMUNICATION, "Received Length: %zu, Remaining: %zu\n", len,self->lengthRemaining);
+
+#ifdef DebugWithDebugger
+          if (len > 200) {
+            // gdb_do_break();
+          }
+#endif
+
+          auto bufferSize = len + self->readBuffer.size();
+          int lenLeft = bufferSize;
+          if (self->readBuffer.size() < self->lengthRemaining)
+            self->readBuffer.reserve(self->lengthRemaining);
+          self->readBuffer.append(static_cast<const char *>(data), len);
+
           int offset = 0;
-          auto enc =
-              base64::encode(static_cast<const unsigned char *>(data), len);
-          Log(COMMUNICATION, "Recieved encoded as b64: %s\n", enc.c_str());
-          head.deserializeFrom(
-              std::string(static_cast<const char *>(data), len), offset);
-          Log(COMMUNICATION, "onData(): fromId=%u, type=%zu, routing=%zu\n",
-              self ? self->nodeId : 0, head.type, head.routing);
+          do {
+            if (self->lengthRemaining > 0) {
+              if (lenLeft < self->lengthRemaining) break;  // We need more data
 
-          // if(data[0-1] > len, if package 2)
-          // auto variable = receiveBuffer.popFront();
-          // variable += data;
+              if (lenLeft >= self->lengthRemaining) {
+                self->pushStdStr(
+                    self->readBuffer.substr(offset, self->lengthRemaining));
+                offset += self->lengthRemaining;
+                lenLeft -= self->lengthRemaining;
+                self->lengthRemaining = 0;
+              } else {
+                self->lengthRemaining -= lenLeft;
+                break;  // We need more data
+              }
+            } else {
+              if (lenLeft < sizeof(self->lengthRemaining)) {
+                break;
+              }
+              SerializeHelper::deserialize(&self->lengthRemaining,
+                                           self->readBuffer, offset);
+              lenLeft = bufferSize - offset;
+            }
+          } while (lenLeft > 0);
 
-          self->receiveBuffer.push(
-              std::string(static_cast<const char *>(data), len), shared_buffer);
+          self->readBuffer.erase(0, offset);
 
-          // Signal that we are done
-          self->client->ack(len);
-          // do nothing
-          self->readBufferTask.forceNextIteration();
-
+          client->ack(len);
           self->mesh->semaphoreGive();
         }
       },
@@ -121,6 +144,11 @@ void MeshConnection::initTCPCallbacks() {
         }
       },
       NULL);
+}
+
+void MeshConnection::pushStdStr(std::string str) {
+  receiveBuffer.push(str);
+  readBufferTask.forceNextIteration();
 }
 
 void MeshConnection::initTasks() {
@@ -229,12 +257,16 @@ void ICACHE_FLASH_ATTR MeshConnection::close() {
 
 bool ICACHE_FLASH_ATTR MeshConnection::addMessage(std::string &message,
                                                   bool priority) {
-  auto b64 = base64::encode(message);
 #ifdef DEBUG
-  Serial.printf("Trying to add message with size %zu, %s\n", message.size(),
-                b64.c_str());
+  // auto b64 = base64::encode(message);
+  // Serial.printf("Trying to add message with size %zu, %s\n", message.size(),
+  //               b64.c_str());
 #endif
-  if (ESP.getFreeHeap() - message.length() >=
+  int len = message.size() - sizeof(int);
+  std::string s;
+  int offset = 0;
+  SerializeHelper::serialize(&len, message, offset);
+  if (ESP.getFreeHeap() - len >=
       MIN_FREE_MEMORY) {  // If memory heap is enough, queue the message
     if (priority) {
       Log(COMMUNICATION,
@@ -259,8 +291,8 @@ bool ICACHE_FLASH_ATTR MeshConnection::addMessage(std::string &message,
     sentBufferTask.forceNextIteration();
     return true;
   } else {
-    // connection->sendQueue.clear(); // Discard all messages if free memory is
-    // low
+    // connection->sendQueue.clear(); // Discard all messages if free memory
+    // is low
     Log(DEBUG, "addMessage(): Memory low, message was discarded\n");
     sentBufferTask.forceNextIteration();
     return false;
@@ -280,9 +312,10 @@ bool ICACHE_FLASH_ATTR MeshConnection::writeNext() {
     // sentBuffer.read(len, shared_buffer);
     // auto written = client->write(shared_buffer.buffer, len, 1);
     auto data_ptr = sentBuffer.readPtr(len);
+
     auto written = client->write(data_ptr, len, 1);
     if (written == len) {
-      Log(COMMUNICATION, "writeNext(): Package sent\n");
+      Log(COMMUNICATION, "writeNext(): Package sent, Written: %zu\n", written);
       // Log(COMMUNICATION, "writeNext(): Package sent %s\n", data_ptr);
       // client->send();  // TODO only do this for priority messages
       sentBuffer.freeRead();
