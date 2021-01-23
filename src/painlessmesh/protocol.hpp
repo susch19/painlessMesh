@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 #include "Arduino.h"
-#include "nodeTree.hpp"
+#include "painlessmesh/nodeTree.hpp"
 #include "painlessmesh/configuration.hpp"
 #include "serializer.hpp"
 // #include "variant.hpp"

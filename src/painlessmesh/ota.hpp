@@ -1,6 +1,6 @@
 #ifndef _PAINLESS_MESH_PLUGIN_OTA_HPP_
 #define _PAINLESS_MESH_PLUGIN_OTA_HPP_
-#pragma once
+
 
 #include "painlessmesh/configuration.hpp"
 

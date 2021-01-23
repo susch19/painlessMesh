@@ -2,6 +2,7 @@
 #define _PAINLESS_MESH_NODETREE_HPP_
 
 #include <list>
+#include <sstream>
 #include <string>
 
 namespace painlessmesh {
@@ -38,7 +39,13 @@ class NodeTree {
 
   bool operator!=(const NodeTree& b) const { return !this->operator==(b); }
 
-  std::string toString(bool pretty = false);
+  std::string toString(bool pretty = false) {
+    /*{"nodeId":1,"subs":[{"nodeId":763956430,"root":true,"subs":[{"nodeId":763955710},{"nodeId":3257231619,"subs":[{"nodeId":3257168800,"subs":[{"nodeId":3257168818,"subs":[{"nodeId":3257232294}]}]}]},{"nodeId":3257233774},{"nodeId":3257144719,"subs":[{"nodeId":3257153413},{"nodeId":3257232527}]}]}]}*/
+    std::stringstream ss;
+    toString(pretty, ss);
+
+    return ss.str();
+  }
 
   uint32_t size() {
     uint32_t size = sizeof(nodeId) + sizeof(root);
@@ -53,6 +60,21 @@ class NodeTree {
     nodeId = 0;
     subs.clear();
     root = false;
+  }
+
+ private:
+  void toString(bool pretty, std::stringstream& ss) {
+    ss << "{\"nodeId\":" << nodeId;
+    if (root) ss << ",\"root\":true";
+    if (subs.size() > 0) {
+      ss << ",\"subs\":[";
+      for (auto&& sub : subs) {
+        sub.toString(pretty, ss);
+        if (sub != subs.back()) ss << ",";
+      }
+      ss << "]";
+    }
+    ss << "}";
   }
 };
 }  // namespace protocol

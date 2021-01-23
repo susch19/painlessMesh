@@ -1,4 +1,4 @@
-#include "packageTypeProvider.hpp"
+#include <painlessmesh/packageTypeProvider.hpp>
 
 namespace painlessmesh {
 std::unordered_map<
