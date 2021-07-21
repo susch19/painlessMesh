@@ -8,7 +8,7 @@
 #endif
 
 #include "serializerExtension.hpp"
-#include "protocol.hpp"
+#include "painlessmesh/protocol.hpp"
 
 namespace painlessmesh {
 
@@ -33,7 +33,7 @@ class TypedVariantBase : public VariantBase {
   TypedVariantBase(T* single, bool cleanup = false)
       : package(single), cleanup(cleanup) {}
 
-  inline T* to() { return package.get(); }
+  inline T* to() { return package; }
 
   int type() override { return package->packageType(); }
   int size() override { return package->size(); }

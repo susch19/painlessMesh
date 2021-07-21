@@ -4,8 +4,8 @@
 #include <memory>
 #include <unordered_map>
 
-#include "variant.hpp"
-#include "protocol.hpp"
+#include "painlessmesh/variant.hpp"
+#include "painlessmesh/protocol.hpp"
 
 namespace painlessmesh{
 // typedef PackageInterface* (*create_ptr)();

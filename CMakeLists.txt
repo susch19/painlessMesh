@@ -19,7 +19,7 @@ ENDIF(Boost_FOUND)
 #     target_include_directories(${NAME} PUBLIC test/include/ test/catch/ test/ArduinoJson/src/ src/ test/TaskScheduler/src)
 # endforeach()
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -save-temps -pthread")
 
 # add_executable(catch_tcp_integration test/boost/tcp_integration.cpp test/catch/fake_serial.cpp src/painlessMeshConnection.cpp src/scheduler.cpp)
 # target_include_directories(catch_tcp_integration PUBLIC test/include/ test/boost/ test/ArduinoJson/src/ test/TaskScheduler/src/ src/)

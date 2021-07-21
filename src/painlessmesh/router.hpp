@@ -76,7 +76,7 @@ bool send(Variant<T>* variant, layout::Layout<U> layout) {
   msg.resize(variant->size() + sizeof(int));
   int offset =  sizeof(int);
   variant->serializeTo(msg,offset);
-  auto conn = findRoute<U>(layout, variant.dest());
+  auto conn = findRoute<U>(layout, variant->package->dest());
   if (conn) return conn->addMessage(msg);
   return false;
 }

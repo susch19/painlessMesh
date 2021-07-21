@@ -1,7 +1,7 @@
 #ifndef _PAINLESS_MESH_SERIALIZER_HPP_
 #define _PAINLESS_MESH_SERIALIZER_HPP_
 
-#include "nodeTree.hpp"
+#include "painlessmesh/nodeTree.hpp"
 #include "typetraitsExtension.hpp"
 #include "serializer.hpp"
 #if defined(DebugWithDebugger) && defined(ESP8266)
