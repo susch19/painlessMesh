@@ -168,9 +168,10 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
   auto variant = PackageTypeProvider::get(header);
   variant->deserializeFrom(pkg);
   Log(COMMUNICATION,
-      "routePackage(): Serialized to variant header type:%zu, route:%zu, "
+      "routePackage(): Deserialized to variant header type:%zu, route:%zu, "
       "dest:%zu\n",
       variant->type(), header.routing, header.dest);
+     
   auto calls =
       cbl.execute(header.type, variant.get(), connection,
                   receivedAt);  // VariantBase*, std::shared_ptr<T>, uint32_t

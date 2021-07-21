@@ -8,6 +8,7 @@
 #endif
 
 #include "serializerExtension.hpp"
+#include "protocol.hpp"
 
 namespace painlessmesh {
 
