@@ -45,6 +45,7 @@ void initServer(AsyncServer &server, M &mesh) {
 template <class T, class M>
 void connect(AsyncClient &client, IPAddress ip, uint16_t port, M &mesh) {
   using namespace logger;
+
   client.onError([&mesh](void *, AsyncClient *client, int8_t err) {
     if (mesh.semaphoreTake()) {
       Log(CONNECTION, "tcp_err(): error trying to connect %d\n", err);

@@ -17,8 +17,8 @@
 #include <ESPAsyncTCP.h>
 #endif  // ESP32
 
-#ifdef PAINLESSMESH_ENABLE_ARDUINO_WIFI
 #include "painlessMeshConnection.h"
+#ifdef PAINLESSMESH_ENABLE_ARDUINO_WIFI
 #include "painlessMeshSTA.h"
 
 #include "arduino/wifi.hpp"

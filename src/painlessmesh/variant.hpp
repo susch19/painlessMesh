@@ -7,15 +7,15 @@
 #include <GDBStub.h>
 #endif
 
-#include "serializerExtension.hpp"
 #include "painlessmesh/protocol.hpp"
+#include "serializerExtension.hpp"
 
 namespace painlessmesh {
 
 class VariantBase {
  public:
-  virtual void serializeTo(std::string& str, int &offset) {}
-  virtual void deserializeFrom(const std::string& str) {}
+  virtual void serializeTo(std::string& str, int& offset) = 0;
+  virtual void deserializeFrom(const std::string& str) = 0;
   virtual int type() = 0;
   virtual int size() = 0;
 };
@@ -46,8 +46,6 @@ class TypedVariantBase : public VariantBase {
     if (!cleanup) return;
     delete package;
   }
-  virtual void serializeTo(std::string& str, int &offset) = 0;
-  virtual void deserializeFrom(const std::string& str) = 0;
 
  private:
   bool cleanup;
@@ -65,7 +63,7 @@ class Variant<protocol::Single> : public TypedVariantBase<protocol::Single> {
  public:
   Variant(protocol::Single* single, bool cleanup = false)
       : TypedVariantBase<protocol::Single>(single, cleanup) {}
-  void serializeTo(std::string& str, int &offset) override {
+  void serializeTo(std::string& str, int& offset) override {
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
     SerializeHelper::serialize(&package->msg, str, offset);
@@ -84,7 +82,7 @@ class Variant<protocol::Broadcast>
  public:
   Variant(protocol::Broadcast* broadcast, bool cleanup = false)
       : TypedVariantBase<protocol::Broadcast>(broadcast, cleanup) {}
-  void serializeTo(std::string& str, int &offset) override {
+  void serializeTo(std::string& str, int& offset) override {
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
     SerializeHelper::serialize(&package->msg, str, offset);
@@ -102,7 +100,7 @@ class Variant<protocol::TimeSync>
  public:
   Variant(protocol::TimeSync* timeSync, bool cleanup = false)
       : TypedVariantBase<protocol::TimeSync>(timeSync, cleanup) {}
-  void serializeTo(std::string& str, int &offset) override {
+  void serializeTo(std::string& str, int& offset) override {
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
     SerializeHelper::serialize(&package->msg, str, offset);
@@ -121,7 +119,7 @@ class Variant<protocol::TimeDelay>
  public:
   Variant(protocol::TimeDelay* timeDelay, bool cleanup = false)
       : TypedVariantBase<protocol::TimeDelay>(timeDelay, cleanup) {}
-  void serializeTo(std::string& str, int &offset) override {
+  void serializeTo(std::string& str, int& offset) override {
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
     SerializeHelper::serialize(&package->msg, str, offset);
@@ -140,7 +138,7 @@ class Variant<protocol::NodeSyncRequest>
  public:
   Variant(protocol::NodeSyncRequest* nodeSyncRequest, bool cleanup = false)
       : TypedVariantBase<protocol::NodeSyncRequest>(nodeSyncRequest, cleanup) {}
-  void serializeTo(std::string& str, int &offset) override {
+  void serializeTo(std::string& str, int& offset) override {
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
     auto node = static_cast<protocol::NodeTree*>(package);
@@ -162,7 +160,7 @@ class Variant<protocol::NodeSyncReply>
  public:
   Variant(protocol::NodeSyncReply* nodeSyncReply, bool cleanup = false)
       : TypedVariantBase<protocol::NodeSyncReply>(nodeSyncReply, cleanup) {}
-  void serializeTo(std::string& str, int &offset) override {
+  void serializeTo(std::string& str, int& offset) override {
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
     auto node = static_cast<protocol::NodeTree*>(package);
@@ -183,7 +181,7 @@ class Variant<protocol::NodeSync>
  public:
   Variant(protocol::NodeSync* nodeSync, bool cleanup = false)
       : TypedVariantBase<protocol::NodeSync>(nodeSync, cleanup) {}
-  void serializeTo(std::string& str, int &offset) override {
+  void serializeTo(std::string& str, int& offset) override {
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
     auto node = static_cast<protocol::NodeTree*>(package);
@@ -197,7 +195,6 @@ class Variant<protocol::NodeSync>
     SerializeHelper::deserialize(node, str, offset);
   }
 };
-
 
 // template <class T, typename = void>
 // struct get_dest {
