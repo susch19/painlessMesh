@@ -102,7 +102,7 @@ void MeshConnection::initTCPCallbacks() {
                 break;  // We need more data
               }
             } else {
-              if (lenLeft < sizeof(self->lengthRemaining)) {
+              if (lenLeft < sizeof(self->lengthRemaining)) { //sizeof because we want to deserialize the lengthRemaining and therefore need 4 bytes
                 break;
               }
               SerializeHelper::deserialize(&self->lengthRemaining,
