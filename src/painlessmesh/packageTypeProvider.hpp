@@ -23,6 +23,9 @@ class PackageTypeProvider {
   static std::shared_ptr<VariantBase> get(protocol::ProtocolHeader header) {
     return map[header.type](header);
   }
+  static bool contains(protocol::ProtocolHeader header){
+    return map.count(header.type);
+  }
 
  protected:
   static std::unordered_map<

@@ -5,7 +5,7 @@
 #include "typetraitsExtension.hpp"
 #include "serializer.hpp"
 #if defined(DebugWithDebugger) && defined(ESP8266)
-#include <GDBStub.h>
+// #include <GDBStub.h>
 #endif
 
 

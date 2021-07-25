@@ -14,7 +14,7 @@
 #include "painlessmesh/logger.hpp"
 using namespace painlessmesh;
 #if defined(DebugWithDebugger) && defined(ESP8266)
-#include "GDBStub.h"
+// #include "GDBStub.h"
 #endif
 
 //#include "lwip/priv/tcpip_priv.h"

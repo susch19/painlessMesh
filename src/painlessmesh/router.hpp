@@ -5,7 +5,7 @@
 #include <map>
 
 #if defined(DebugWithDebugger) && defined(ESP8266)
-#include <GDBStub.h>
+// #include <GDBStub.h>
 #endif
 
 #include "painlessmesh/callback.hpp"
@@ -43,8 +43,8 @@ bool send(T& package, std::shared_ptr<U> conn, bool priority = false) {
   auto variant = Variant<T>(&package);
   std::string msg;
   msg.resize(package.size() + sizeof(int));
-  int offset =  sizeof(int);
-  variant.serializeTo(msg,offset);
+  int offset = sizeof(int);
+  variant.serializeTo(msg, offset);
   return conn->addMessage(msg, priority);
 }
 
@@ -52,8 +52,8 @@ template <class T, class U>
 bool send(Variant<T>* variant, std::shared_ptr<U> conn, bool priority = false) {
   TSTRING msg;
   msg.resize(variant->size() + sizeof(int));
-  int offset =  sizeof(int);
-  variant->serializeTo(msg,offset);
+  int offset = sizeof(int);
+  variant->serializeTo(msg, offset);
   return conn->addMessage(msg, priority);
 }
 
@@ -62,8 +62,8 @@ bool send(T& package, layout::Layout<U> layout) {
   auto variant = Variant<T>(&package);
   std::string msg;
   msg.resize(package.size() + sizeof(int));
-  int offset =  sizeof(int);
-  variant.serializeTo(msg,offset);
+  int offset = sizeof(int);
+  variant.serializeTo(msg, offset);
   auto conn = findRoute<U>(layout, variant.package->header.dest);
   if (conn) return conn->addMessage(msg);
   return false;
@@ -74,8 +74,8 @@ bool send(Variant<T>* variant, layout::Layout<U> layout) {
   std::string msg;
 
   msg.resize(variant->size() + sizeof(int));
-  int offset =  sizeof(int);
-  variant->serializeTo(msg,offset);
+  int offset = sizeof(int);
+  variant->serializeTo(msg, offset);
   auto conn = findRoute<U>(layout, variant->package->dest());
   if (conn) return conn->addMessage(msg);
   return false;
@@ -84,7 +84,10 @@ template <class U>
 bool send(std::string& msg, protocol::ProtocolHeader& header,
           layout::Layout<U> layout) {
   auto conn = findRoute<U>(layout, header.dest);
-  if (conn) return conn->addMessage(msg);
+  if (conn) {
+    msg.insert(0, 4, '\0');
+    return conn->addMessage(msg);
+  }
   return false;
 }
 
@@ -93,8 +96,8 @@ size_t broadcast(T& package, layout::Layout<U> layout, uint32_t exclude) {
   auto variant = Variant<T>(&package);
   std::string msg;
   msg.resize(package.size() + sizeof(int));
-  int offset =  sizeof(int);
-  variant.serializeTo(msg,offset);
+  int offset = sizeof(int);
+  variant.serializeTo(msg, offset);
 
   size_t i = 0;
   for (auto&& conn : layout.subs) {
@@ -111,8 +114,8 @@ size_t broadcast(VariantBase* variant, layout::Layout<T> layout,
                  uint32_t exclude) {
   std::string msg;
   msg.resize(variant->size() + sizeof(int));
-  int offset =  sizeof(int);
-  variant->serializeTo(msg,offset);
+  int offset = sizeof(int);
+  variant->serializeTo(msg, offset);
   size_t i = 0;
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
@@ -126,6 +129,7 @@ size_t broadcast(VariantBase* variant, layout::Layout<T> layout,
 template <class T>
 size_t broadcast(std::string& msg, layout::Layout<T> layout, uint32_t exclude) {
   size_t i = 0;
+  msg.insert(0, 4, '\0');
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
       auto sent = conn->addMessage(msg);
@@ -148,6 +152,13 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
   protocol::ProtocolHeader header;
   header.deserializeFrom(pkg, offset);
 
+  if (header.routing > 2 || header.routing < 0) {
+    Log(ERROR,
+        "routePackage(): Recvd header with unknown routing %zu. Message is "
+        "going to be dismissed!\n",
+        header.routing);
+        return;
+  }
   Log(COMMUNICATION,
       "routePackage(): Recvd header type:%zu, route:%zu, dest:%zu\n",
       header.type, header.routing, header.dest);
@@ -158,25 +169,32 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
         header.type, header.routing, header.dest);
     send<T>(pkg, header, layout);
     return;
-  } else if (header.routing == BROADCAST) {
+  }
+
+  if (PackageTypeProvider::contains(header)) {
+    auto variant = PackageTypeProvider::get(header);
+    variant->deserializeFrom(pkg);
+    Log(COMMUNICATION,
+        "routePackage(): Deserialized to variant header type:%zu, route:%zu, "
+        "dest:%zu\n",
+        variant->type(), header.routing, header.dest);
+
+    auto calls =
+        cbl.execute(header.type, variant.get(), connection,
+                    receivedAt);  // VariantBase*, std::shared_ptr<T>, uint32_t
+  } else {
+    Log(ERROR, "routePackage(): Got a Message with an unkown package type %zu. This message won't be processed locally%s", 
+    header.type, 
+    header.routing == BROADCAST ? ", but will be broadcasted to the other nodes": ".");
+  }
+  // Log(DEBUG, "routePackage(): %zu callbacks executed; %zu\n", calls,
+  //     variant->type());
+  if (header.routing == BROADCAST) {
     Log(COMMUNICATION,
         "routePackage(): Broadcast Package type:%zu, route:%zu, dest:%zu\n",
         header.type, header.routing, header.dest);
     broadcast<T>(pkg, layout, connection->nodeId);
   }
-
-  auto variant = PackageTypeProvider::get(header);
-  variant->deserializeFrom(pkg);
-  Log(COMMUNICATION,
-      "routePackage(): Deserialized to variant header type:%zu, route:%zu, "
-      "dest:%zu\n",
-      variant->type(), header.routing, header.dest);
-     
-  auto calls =
-      cbl.execute(header.type, variant.get(), connection,
-                  receivedAt);  // VariantBase*, std::shared_ptr<T>, uint32_t
-  // Log(DEBUG, "routePackage(): %zu callbacks executed; %zu\n", calls,
-  //     variant->type());
 }
 
 template <class T, class U>

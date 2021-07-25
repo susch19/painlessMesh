@@ -12,7 +12,7 @@
 #include "Arduino.h"
 
 #if defined(DebugWithDebugger) && defined(ESP8266)
-#include <GDBStub.h>
+// #include <GDBStub.h>
 #endif
 
 #include "painlessmesh/callback.hpp"
