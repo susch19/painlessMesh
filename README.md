@@ -2,13 +2,17 @@
 
 painlessMesh is a library that takes care of the particulars of creating a simple mesh network using esp8266 and esp32 hardware.  The goal is to allow the programmer to work with a mesh network without having to worry about how the network is structured or managed.
 
+## Warning
+
+This is not compatible with the [original painlessMesh](https://gitlab.com/painlessMesh/painlessMesh), because it's **not json based** anymore, but **binary**. I rewrote a lot of the code to use std::string and other methods, because it fits my use case way better than the json based one. Speed, Message Size, Firmware Size and ease of use was a priority for me, even though the logging is worse than before, but that was a tradeoff i was willing to make. You have to decide for yourself, what you want to use.
+
 ### True ad-hoc networking
 
 painlessMesh is a true ad-hoc network, meaning that no-planning, central controller, or router is required.  Any system of 1 or more nodes will self-organize into fully functional mesh.  The maximum size of the mesh is limited (we think) by the amount of memory in the heap that can be allocated to the sub-connections buffer and so should be really quite high.
 
-### JSON based
+### Binary based
 
-painlessMesh uses JSON objects for all its messaging.  There are a couple of reasons for this.  First, it makes the code and the messages human readable and painless to understand and second, it makes it painless to integrate painlessMesh with javascript front-ends, web applications, and other apps.  Some performance is lost, but I haven’t been running into performance issues yet.  Converting to binary messaging would be fairly straight forward if someone wants to contribute.
+painlessMesh uses pure binary for all its messaging.  There are a couple of reasons for this. First, it makes the code and the messages human readable with the serialize helper and painless to understand. Second it allows you to send every data you want to, like binary files for ota updates. Also in front of every message is a small header, which includes the messaging type and therefore very performant redirection without having to interpret the whole message. In comparison to the default painlessmesh, which is based on json, this supports bigger messages for esp8266 (4kb vs ~768b), even in bigger networks with many redirects, because the message doesn't have to be deserialized and therefore held in the small ram multiple times.
 
 ### Wifi &amp; Networking
 
@@ -33,30 +37,36 @@ painlessMesh does not create a TCP/IP network of nodes. Rather each of the nodes
 
 painlessMesh makes use of the following libraries, which can be installed through the Arduino Library Manager
 
-- [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
 - [TaskScheduler](https://github.com/arkhipenko/TaskScheduler)
 - [ESPAsyncTCP](https://github.com/me-no-dev/ESPAsyncTCP) (ESP8266)
 - [AsyncTCP](https://github.com/me-no-dev/AsyncTCP) (ESP32)
 
 If platformio is used to install the library, then the dependency will be installed automatically.
 
-## Examples
+## Examples 
 
-StartHere is a basic how to use example. It blinks built-in LED (in ESP-12) as many times as nodes are connected to the mesh. Further examples are under the examples directory and shown on the platformio [page](http://platformio.org/lib/show/1269/painlessMesh).
+These are still json based (no std::string) and therefore not usable.
+If you want an example implementation you can visit one of these projects:
+- [painlessMeshBoost Binary](https://github.com/susch19/painlessmeshboost)
+- [SK6812 Ledstrip](https://github.com/susch19/SmarthomeLEDStrip)
+- [Smarthome Heater with SSR](https://github.com/susch19/SmarthomeHeater)
+ ~~StartHere is a basic how to use example. It blinks built-in LED (in ESP-12) as many times as nodes are connected to the mesh. Further examples are under the examples directory and shown on the platformio [page](http://platformio.org/lib/show/1269/painlessMesh) ~~.
 
-# Getting help
+# Getting help (Original JSON Based)
 
-There is help available from a variety of sources:
+The original help is only partially usable, because of the rewrite.
+If you need help, you can always open an issue and i try to help you, as soon as i get the time.
+ ~~There is help available from a variety of sources:
 
-- The [included examples](https://gitlab.com/painlessMesh/painlessMesh/tree/master/examples)
-- The [API documentation](http://painlessmesh.gitlab.io/painlessMesh/index.html)
-- The [wiki](https://gitlab.com/painlessMesh/painlessMesh/wikis/home)
-- On our new [forum/mailinglist](https://groups.google.com/forum/#!forum/painlessmesh-user)
-- On the [gitter channel](https://gitter.im/painlessMesh/Lobby)
+-  ~~The [included examples](https://gitlab.com/painlessMesh/painlessMesh/tree/master/examples)
+-  ~~The [API documentation](http://painlessmesh.gitlab.io/painlessMesh/index.html)
+-  ~~The [wiki](https://gitlab.com/painlessMesh/painlessMesh/wikis/home)
+-  ~~On our new [forum/mailinglist](https://groups.google.com/forum/#!forum/painlessmesh-user)
+-  ~~On the [gitter channel](https://gitter.im/painlessMesh/Lobby)
 
 # Contributing
 
-We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) development model. Which means that we have a `develop` branch and `master` branch. All development is done under feature branches, which are (when finished) merged into the development branch. When a new version is released we merge the `develop` branch into the `master` branch. For more details see the [CONTRIBUTING](https://gitlab.com/painlessMesh/painlessMesh/blob/master/CONTRIBUTING.md) file.
+We try to follow the [git flow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) development model. Which means that we have a `develop` branch and `master` branch. All development is done under feature branches, which are (when finished) merged into the development branch. When a new version is released we merge the `develop` branch into the `master` branch.
 
 
 # painlessMesh API
@@ -70,7 +80,7 @@ First include the library and create an painlessMesh object like this.
 painlessMesh  mesh;
 ```
 
-The main member functions are included below. **Full documentation can be found [here](https://painlessmesh.gitlab.io/painlessMesh/index.html)**
+The main member functions are included below. **Full documentation of json based api can be found [here](https://painlessmesh.gitlab.io/painlessMesh/index.html)**
 
 ## Member Functions
 
@@ -101,7 +111,7 @@ This routine runs various maintainance tasks... Not super interesting, but thing
 
 Set a callback routine for any messages that are addressed to this node. Callback routine has the following structure.
 
-`void receivedCallback( uint32_t from, String &amp;msg )`
+`void receivedCallback( uint32_t from, std::string &amp;msg )`
 
 Every time this node receives a message, this callback routine will the called.  “from” is the id of the original sender of the message, and “msg” is a string that contains the message.  The message can be anything.  A JSON, some other text string, or binary data.
 
@@ -145,19 +155,19 @@ This fires when a time delay masurement response is received, after a request wa
 
 `delay` One way network trip delay in microseconds.
 
-### bool painlessMesh::sendBroadcast( String &amp;msg, bool includeSelf = false)
+### bool painlessMesh::sendBroadcast( std::string &amp;msg, bool includeSelf = false)
 
 Sends msg to every node on the entire mesh network. By default the current node is excluded from receiving the message (`includeSelf = false`). `includeSelf = true` overrides this behaviour, causing the `receivedCallback` to be called when sending a broadcast message. 
 
 returns true if everything works, false if not.  Prints an error message to Serial.print, if there is a failure.
 
-### bool painlessMesh::sendSingle(uint32_t dest, String &amp;msg)
+### bool painlessMesh::sendSingle(uint32_t dest, std::string &amp;msg)
 
 Sends msg to the node with Id == dest.
 
 returns true if everything works, false if not.  Prints an error message to Serial.print, if there is a failure.
 
-### String painlessMesh::subConnectionJson()
+### std::string painlessMesh::subConnectionJson()
 
 Returns mesh topology in JSON format.
 
@@ -181,7 +191,7 @@ Sends a node a packet to measure network trip delay to that node. Returns true i
 
 nodeDelayCallback_t is a funtion in the form of `void (uint32_t nodeId, int32_t delay)`.
 
-### void painlessMesh::stationManual( String ssid, String password, uint16_t port, uint8_t *remote_ip )
+### void painlessMesh::stationManual( std::string ssid, std::string password, uint16_t port, uint8_t *remote_ip )
 
 Connects the node to an AP outside the mesh. When specifying a `remote_ip` and `port`, the node opens a TCP connection after establishing the WiFi connection.
 
@@ -189,7 +199,7 @@ Note: The mesh must be on the same WiFi channel as the AP.
 
 # Funding and donations
 
-You can donate using one of our cryptocoin addresses:
+If you want to donate to the original project (Which im not a part of), you can use one of their cryptocoin addresses ([Check original Readme](https://gitlab.com/painlessMesh/painlessMesh#funding-and-donations)):
 
 - ethereum: 0x45B4638faAB5CF1bbcC1ee177681E74343EC9c86
 - bitcoin: 1HqEkiU3BxGwJ3EL9QJFThWF4zGN4tisim

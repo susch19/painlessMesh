@@ -86,7 +86,7 @@ class BufferedConnection
     client->onData(
         [self = this->shared_from_this()](void *arg, AsyncClient *client,
                                           void *data, size_t len) {
-          self->receiveBuffer.push(static_cast<const char *>(data), len,
+          self->receiveBuffer.push(std::string(static_cast<const char *>(data), len),
                                    shared_buffer);
           // Signal that we are done
           self->client->ack(len);

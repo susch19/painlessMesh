@@ -9,16 +9,11 @@
 
 #include <TaskSchedulerDeclarations.h>
 
-#define ARDUINOJSON_USE_LONG_LONG 1
-#undef ARDUINOJSON_ENABLE_STD_STRING
-#include <ArduinoJson.h>
-#undef ARDUINOJSON_ENABLE_STD_STRING
-
 // Enable (arduino) wifi support
 #define PAINLESSMESH_ENABLE_ARDUINO_WIFI
 
 // Enable OTA support
-#define PAINLESSMESH_ENABLE_OTA
+#undef PAINLESSMESH_ENABLE_OTA
 
 #define NODE_TIMEOUT 5 * TASK_SECOND
 #define SCAN_INTERVAL 30 * TASK_SECOND  // AP scan period in ms
@@ -31,7 +26,7 @@
 #include <ESPAsyncTCP.h>
 #endif // ESP32
 
-typedef String TSTRING;
+typedef std::string TSTRING;
 
 // backward compatibility
 template <typename T>

@@ -16,7 +16,6 @@ namespace buffer {
 // Temporary buffer used by ReceiveBuffer and SentBuffer
 struct temp_buffer_t {
   size_t length = TCP_MSS;
-  char buffer[TCP_MSS];
 };
 
 /**
@@ -30,30 +29,36 @@ class ReceiveBuffer {
   /**
    * Push a message into the buffer
    */
-  void push(const char *cstr, size_t length, temp_buffer_t &buf) {
-    auto data_ptr = cstr;
-    do {
-      auto len = strnlen(data_ptr, length);
-      do {
-        auto read_len = std::min(len, buf.length);
-        memcpy(buf.buffer, data_ptr, read_len);
-        buf.buffer[read_len] = '\0';
-        auto newBuffer = T(buf.buffer);
-        stringAppend(buffer, newBuffer);
-        len -= newBuffer.length();
-        length -= newBuffer.length();
-        data_ptr += newBuffer.length() * sizeof(char);
-      } while (len > 0);
-      if (length > 0) {
-        // Skip/remove the '\0' between the messages
-        length -= 1;
-        data_ptr += 1 * sizeof(char);
-        if (buffer.length() > 0) {  // skip empty buffers
-          jsonStrings.push_back(buffer);
-          buffer = T();
-        }
-      }
-    } while (length > 0);
+  // void push(const char *cstr, size_t length, temp_buffer_t &buf) {
+  //   auto data_ptr = cstr;
+  //   // Serial.println("Push should not have been called!");
+  //   do {
+  //     auto len = strnlen(data_ptr, length);
+  //     do {
+  //       auto read_len = std::min(len, buf.length);
+  //       memcpy(buf.buffer, data_ptr, read_len);
+  //       buf.buffer[read_len] = '\0';
+  //       auto newBuffer = T(buf.buffer);
+  //       stringAppend(buffer, newBuffer);
+  //       len -= newBuffer.length();
+  //       length -= newBuffer.length();
+  //       data_ptr += newBuffer.length() * sizeof(char);
+  //     } while (len > 0);
+  //     if (length > 0) {
+  //       // Skip/remove the '\0' between the messages
+  //       length -= 1;
+  //       data_ptr += 1 * sizeof(char);
+  //       if (buffer.length() > 0) {  // skip empty buffers
+  //         jsonStrings.push_back(buffer);
+  //         buffer = T();
+  //       }
+  //     }
+  //   } while (length > 0);
+  // }
+
+  void push(std::string cstr) {
+
+    jsonStrings.push_back(cstr);
   }
 
   /**
@@ -90,16 +95,24 @@ class ReceiveBuffer {
    * Helper function to deal with difference Arduino String
    * and std::string
    */
-  inline void stringAppend(T &buffer, T &newBuffer) { buffer.concat(newBuffer); };
+  inline void stringAppend(T &buffer, T &newBuffer) { buffer += newBuffer; };
 };
 
-#ifdef PAINLESSMESH_ENABLE_STD_STRING
+// #ifdef PAINLESSMESH_ENABLE_STD_STRING
 template <>
 inline void ReceiveBuffer<std::string>::stringAppend(std::string &buffer,
-                                              std::string &newBuffer) {
+                                                     std::string &newBuffer) {
   buffer.append(newBuffer);
 }
-#endif
+
+// template <>
+// void ReceiveBuffer<std::string>::push(const char *cstr, size_t length,
+//                                       temp_buffer_t &buf) {
+//   buffer = std::string(cstr, length);
+//   jsonStrings.push_back(buffer);
+//   buffer = std::string();
+// }
+// #endif
 
 /**
  * \brief SentBuffer stores messages (strings) and allows them to be read in any
@@ -133,12 +146,14 @@ class SentBuffer {
    * Returns the actual length available (<= the requested length
    */
   size_t requestLength(size_t buffer_length) {
-    if (jsonStrings.empty())
+    if (jsonStrings.empty()) {
       return 0;
-    else
+    } else
       // String.toCharArray automatically turns the last character into
       // a \0, we need the extra space to deal with that annoyance
-      return std::min(buffer_length - 1, jsonStrings.begin()->length() + 1);
+
+          // buffer_length, jsonStrings.begin()->size());
+    return std::min(buffer_length, jsonStrings.begin()->size());
   }
 
   /**
@@ -148,17 +163,18 @@ class SentBuffer {
    * using `SentBuffer.requestLength()`, otherwise this function might fail.
    * Note that if multiple messages are read then they are separated using '\0'.
    */
-  void read(size_t length, temp_buffer_t &buf) {
-    // TODO: I don't think we actually need to copy here, and/or
-    // we should add a non-copy mode, that returns a pointer directly
-    // to the data (using c_str()).
-    //
-    // Note that toCharrArray always null terminates
-    // independent of whether the whole string was read so we use one extra
-    // space
-    jsonStrings.front().toCharArray(buf.buffer, length + 1);
-    last_read_size = length;
-  }
+  // void read(size_t length, temp_buffer_t &buf) {
+  //   // TODO: I don't think we actually need to copy here, and/or
+  //   // we should add a non-copy mode, that returns a pointer directly
+  //   // to the data (using c_str()).
+  //   //
+  //   // Note that toCharrArray always null terminates
+  //   // independent of whether the whole string was read so we use one extra
+  //   // space
+  //   std::string asd;
+  //   jsonStrings.front().toCharArray(buf.buffer, length + 1);
+  //   last_read_size = length;
+  // }
 
   /**
    * Returns a pointer directly to the oldest message
@@ -167,7 +183,7 @@ class SentBuffer {
    * using `SentBuffer.requestLength()`, otherwise this function might fail.
    * Note that if multiple messages are read then they are separated using '\0'.
    */
-  const char* readPtr(size_t length) {
+  const char *readPtr(size_t length) {
     last_read_size = length;
     return jsonStrings.front().c_str();
   }
@@ -178,7 +194,7 @@ class SentBuffer {
    * Should be called after a call of read() to clear the buffer.
    */
   void freeRead() {
-    if (last_read_size == jsonStrings.begin()->length() + 1) {
+    if (last_read_size == jsonStrings.begin()->length()) {
       jsonStrings.pop_front();
       clean = true;
     } else {
@@ -200,27 +216,27 @@ class SentBuffer {
   bool clean = true;
   std::list<T> jsonStrings;
 
-  inline void stringEraseFront(T &string, size_t length) { string.remove(0, length); };
+  inline void stringEraseFront(T &string, size_t length) {
+    string.remove(0, length);
+  };
 };
 
-#ifdef PAINLESSMESH_ENABLE_STD_STRING
-template <>
-inline void SentBuffer<std::string>::read(size_t length, temp_buffer_t &buf) {
-  jsonStrings.front().copy(buf.buffer, length);
-  // Mimic String.toCharArray behaviour, which will insert
-  // null termination at the end of original string and the last
-  // character
-  if (length == jsonStrings.front().length() + 1) buf.buffer[length - 1] = '\0';
-  buf.buffer[length] = '\0';
-  last_read_size = length;
-}
+// template <>
+// inline void SentBuffer<std::string>::read(size_t length, temp_buffer_t &buf)
+// {
+//   jsonStrings.front().copy(buf.buffer, length);
+//   // Mimic String.toCharArray behaviour, which will insert
+//   // null termination at the end of original string and the last
+//   // character
+//   if (length == jsonStrings.front().length() + 1) buf.buffer[length - 1] =
+//   '\0'; buf.buffer[length] = '\0'; last_read_size = length;
+// }
 
 template <>
 inline void SentBuffer<std::string>::stringEraseFront(std::string &string,
-                                               size_t length) {
+                                                      size_t length) {
   string.erase(0, length);
 };
-#endif
 
 }  // namespace buffer
 }  // namespace painlessmesh

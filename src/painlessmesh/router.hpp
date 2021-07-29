@@ -4,10 +4,16 @@
 #include <algorithm>
 #include <map>
 
+#if defined(DebugWithDebugger) && defined(ESP8266)
+// #include <GDBStub.h>
+#endif
+
 #include "painlessmesh/callback.hpp"
 #include "painlessmesh/layout.hpp"
 #include "painlessmesh/logger.hpp"
+#include "painlessmesh/packageTypeProvider.hpp"
 #include "painlessmesh/protocol.hpp"
+#include "painlessmesh/variant.hpp"
 
 extern painlessmesh::logger::LogClass Log;
 
@@ -33,45 +39,66 @@ std::shared_ptr<T> findRoute(layout::Layout<T> tree, uint32_t nodeId) {
 }
 
 template <class T, class U>
-bool send(T package, std::shared_ptr<U> conn, bool priority = false) {
-  auto variant = painlessmesh::protocol::Variant(package);
-  TSTRING msg;
-  variant.printTo(msg);
-  return conn->addMessage(msg, priority);
-}
-
-template <class U>
-bool send(protocol::Variant variant, std::shared_ptr<U> conn,
-          bool priority = false) {
-  TSTRING msg;
-  variant.printTo(msg);
+bool send(T& package, std::shared_ptr<U> conn, bool priority = false) {
+  auto variant = Variant<T>(&package);
+  std::string msg;
+  msg.resize(package.size() + sizeof(int));
+  int offset = sizeof(int);
+  variant.serializeTo(msg, offset);
   return conn->addMessage(msg, priority);
 }
 
 template <class T, class U>
-bool send(T package, layout::Layout<U> layout) {
-  auto variant = painlessmesh::protocol::Variant(package);
+bool send(Variant<T>* variant, std::shared_ptr<U> conn, bool priority = false) {
   TSTRING msg;
-  variant.printTo(msg);
-  auto conn = findRoute<U>(layout, variant.dest);
-  if (conn) return conn->addMessage(msg);
-  return false;
+  msg.resize(variant->size() + sizeof(int));
+  int offset = sizeof(int);
+  variant->serializeTo(msg, offset);
+  return conn->addMessage(msg, priority);
 }
 
-template <class U>
-bool send(protocol::Variant variant, layout::Layout<U> layout) {
-  TSTRING msg;
-  variant.printTo(msg);
-  auto conn = findRoute<U>(layout, variant.dest());
+template <class T, class U>
+bool send(T& package, layout::Layout<U> layout) {
+  auto variant = Variant<T>(&package);
+  std::string msg;
+  msg.resize(package.size() + sizeof(int));
+  int offset = sizeof(int);
+  variant.serializeTo(msg, offset);
+  auto conn = findRoute<U>(layout, variant.package->header.dest);
   if (conn) return conn->addMessage(msg);
   return false;
 }
 
 template <class T, class U>
-size_t broadcast(T package, layout::Layout<U> layout, uint32_t exclude) {
-  auto variant = painlessmesh::protocol::Variant(package);
-  TSTRING msg;
-  variant.printTo(msg);
+bool send(Variant<T>* variant, layout::Layout<U> layout) {
+  std::string msg;
+
+  msg.resize(variant->size() + sizeof(int));
+  int offset = sizeof(int);
+  variant->serializeTo(msg, offset);
+  auto conn = findRoute<U>(layout, variant->package->dest());
+  if (conn) return conn->addMessage(msg);
+  return false;
+}
+template <class U>
+bool send(std::string& msg, protocol::ProtocolHeader& header,
+          layout::Layout<U> layout) {
+  auto conn = findRoute<U>(layout, header.dest);
+  if (conn) {
+    msg.insert(0, 4, '\0');
+    return conn->addMessage(msg);
+  }
+  return false;
+}
+
+template <class T, class U>
+size_t broadcast(T& package, layout::Layout<U> layout, uint32_t exclude) {
+  auto variant = Variant<T>(&package);
+  std::string msg;
+  msg.resize(package.size() + sizeof(int));
+  int offset = sizeof(int);
+  variant.serializeTo(msg, offset);
+
   size_t i = 0;
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
@@ -83,11 +110,26 @@ size_t broadcast(T package, layout::Layout<U> layout, uint32_t exclude) {
 }
 
 template <class T>
-size_t broadcast(protocol::Variant variant, layout::Layout<T> layout,
+size_t broadcast(VariantBase* variant, layout::Layout<T> layout,
                  uint32_t exclude) {
-  TSTRING msg;
-  variant.printTo(msg);
+  std::string msg;
+  msg.resize(variant->size() + sizeof(int));
+  int offset = sizeof(int);
+  variant->serializeTo(msg, offset);
   size_t i = 0;
+  for (auto&& conn : layout.subs) {
+    if (conn->nodeId != 0 && conn->nodeId != exclude) {
+      auto sent = conn->addMessage(msg);
+      if (sent) ++i;
+    }
+  }
+  return i;
+}
+
+template <class T>
+size_t broadcast(std::string& msg, layout::Layout<T> layout, uint32_t exclude) {
+  size_t i = 0;
+  msg.insert(0, 4, '\0');
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
       auto sent = conn->addMessage(msg);
@@ -99,57 +141,75 @@ size_t broadcast(protocol::Variant variant, layout::Layout<T> layout,
 
 template <class T>
 void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
-                  TSTRING pkg, callback::MeshPackageCallbackList<T> cbl, uint32_t receivedAt) {
+                  TSTRING pkg, callback::MeshPackageCallbackList<T> cbl,
+                  uint32_t receivedAt) {
   using namespace logger;
-  static size_t baseCapacity = 512;
-  Log(COMMUNICATION, "routePackage(): Recvd from %u: %s\n", connection->nodeId,
-      pkg.c_str());
-  // Using a ptr so we can overwrite it if we need to grow capacity.
-  // Bug in copy constructor with grown capacity can cause segmentation fault
-  auto variant =
-      std::make_shared<protocol::Variant>(pkg, pkg.length() + baseCapacity);
-  while (variant->error == 3 && baseCapacity <= 20480) {
-    // Not enough memory, adapt scaling (variant::capacityScaling) and log the
-    // new value
-    Log(DEBUG,
-        "routePackage(): parsing failed. err=%u, increasing capacity: %u\n",
-        variant->error, baseCapacity);
-    baseCapacity += 256;
-    variant =
-        std::make_shared<protocol::Variant>(pkg, pkg.length() + baseCapacity);
-  }
-  if (variant->error) {
+
+  Log(COMMUNICATION, "routePackage(): Recvd from %u: %zu\n", connection->nodeId,
+      pkg.size());
+
+  int offset = 0;
+  protocol::ProtocolHeader header;
+  header.deserializeFrom(pkg, offset);
+
+  if (header.routing > 2 || header.routing < 0) {
     Log(ERROR,
-        "routePackage(): parsing failed. err=%u, total_length=%d, data=%s<--\n",
-        variant->error, pkg.length(), pkg.c_str());
+        "routePackage(): Recvd header with unknown routing %zu. Message is "
+        "going to be dismissed!\n",
+        header.routing);
+        return;
+  }
+  Log(COMMUNICATION,
+      "routePackage(): Recvd header type:%zu, route:%zu, dest:%zu\n",
+      header.type, header.routing, header.dest);
+  if (header.routing == SINGLE && header.dest != layout.getNodeId()) {
+    // Send on without further processing
+    Log(COMMUNICATION,
+        "routePackage(): Just Route package type:%zu, route:%zu, dest:%zu\n",
+        header.type, header.routing, header.dest);
+    send<T>(pkg, header, layout);
     return;
   }
 
-  if (variant->routing() == SINGLE && variant->dest() != layout.getNodeId()) {
-    // Send on without further processing
-    send<T>((*variant), layout);
-    return;
-  } else if (variant->routing() == BROADCAST) {
-    broadcast<T>((*variant), layout, connection->nodeId);
+  if (PackageTypeProvider::contains(header)) {
+    auto variant = PackageTypeProvider::get(header);
+    variant->deserializeFrom(pkg);
+    Log(COMMUNICATION,
+        "routePackage(): Deserialized to variant header type:%zu, route:%zu, "
+        "dest:%zu\n",
+        variant->type(), header.routing, header.dest);
+
+    auto calls =
+        cbl.execute(header.type, variant.get(), connection,
+                    receivedAt);  // VariantBase*, std::shared_ptr<T>, uint32_t
+  } else {
+    Log(ERROR, "routePackage(): Got a Message with an unkown package type %zu. This message won't be processed locally%s", 
+    header.type, 
+    header.routing == BROADCAST ? ", but will be broadcasted to the other nodes": ".");
   }
-  auto calls = cbl.execute(variant->type(), (*variant), connection, receivedAt);
-  if (calls == 0)
-    Log(DEBUG, "routePackage(): No callbacks executed; %u, %s\n", variant->type(), pkg.c_str());
+  // Log(DEBUG, "routePackage(): %zu callbacks executed; %zu\n", calls,
+  //     variant->type());
+  if (header.routing == BROADCAST) {
+    Log(COMMUNICATION,
+        "routePackage(): Broadcast Package type:%zu, route:%zu, dest:%zu\n",
+        header.type, header.routing, header.dest);
+    broadcast<T>(pkg, layout, connection->nodeId);
+  }
 }
 
 template <class T, class U>
-void handleNodeSync(T& mesh, protocol::NodeTree newTree,
+void handleNodeSync(T& mesh, protocol::NodeTree* newTree,
                     std::shared_ptr<U> conn) {
   Log(logger::SYNC, "handleNodeSync(): with %u\n", conn->nodeId);
 
-  if (!conn->validSubs(newTree)) {
+  if (!conn->validSubs(*newTree)) {
     Log(logger::SYNC, "handleNodeSync(): invalid new connection\n");
     conn->close();
     return;
   }
 
   if (conn->newConnection) {
-    auto oldConnection = router::findRoute<U>(mesh, newTree.nodeId);
+    auto oldConnection = router::findRoute<U>(mesh, newTree->nodeId);
     if (oldConnection) {
       Log(logger::SYNC,
           "handleNodeSync(): already connected to %u. Closing the new "
@@ -159,7 +219,7 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
       return;
     }
 
-    mesh.addTask([&mesh, remoteNodeId = newTree.nodeId]() {
+    mesh.addTask([&mesh, remoteNodeId = newTree->nodeId]() {
       Log(logger::CONNECTION, "newConnectionTask():\n");
       Log(logger::CONNECTION, "newConnectionTask(): adding %u now= %u\n",
           remoteNodeId, mesh.getNodeTime());
@@ -185,8 +245,8 @@ void handleNodeSync(T& mesh, protocol::NodeTree newTree,
     conn->newConnection = false;
   }
 
-  if (conn->updateSubs(newTree)) {
-    mesh.addTask([&mesh, nodeId = newTree.nodeId]() {
+  if (conn->updateSubs(*newTree)) {
+    mesh.addTask([&mesh, nodeId = newTree->nodeId]() {
       mesh.changedConnectionCallbacks.execute(nodeId);
     });
   } else {
@@ -201,21 +261,23 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
   // REQUEST type,
   callbackList.onPackage(
       protocol::NODE_SYNC_REQUEST,
-      [&mesh](protocol::Variant variant, std::shared_ptr<U> connection,
+      [&mesh](VariantBase* variant, std::shared_ptr<U> connection,
               uint32_t receivedAt) {
-        auto newTree = variant.to<protocol::NodeSyncRequest>();
+        auto typedVariant = (Variant<protocol::NodeSyncRequest>*)variant;
+        auto newTree = typedVariant->package;
         handleNodeSync<T, U>(mesh, newTree, connection);
-        send<protocol::NodeSyncReply>(
-            connection->reply(std::move(mesh.asNodeTree())), connection, true);
+        auto nodeTree = connection->reply(std::move(mesh.asNodeTree()));
+        send<protocol::NodeSyncReply>(nodeTree, connection, true);
         return false;
       });
 
   // Reply type just handle it
   callbackList.onPackage(
       protocol::NODE_SYNC_REPLY,
-      [&mesh](protocol::Variant variant, std::shared_ptr<U> connection,
+      [&mesh](VariantBase* variant, std::shared_ptr<U> connection,
               uint32_t receivedAt) {
-        auto newTree = variant.to<protocol::NodeSyncReply>();
+        auto typedVariant = (Variant<protocol::NodeSyncReply>*)variant;
+        auto newTree = typedVariant->package;
         handleNodeSync<T, U>(mesh, newTree, connection);
         connection->timeOutTask.disable();
         return false;
@@ -228,4 +290,3 @@ callback::MeshPackageCallbackList<U> addPackageCallback(
 }  // namespace painlessmesh
 
 #endif
-

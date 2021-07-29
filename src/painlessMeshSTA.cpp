@@ -23,7 +23,7 @@ extern painlessmesh::logger::LogClass Log;
 //***********************************************************************
 // Calculate NodeID from a hardware MAC address
 void ICACHE_FLASH_ATTR StationScan::init(painlessmesh::wifi::Mesh *pMesh,
-                                         TSTRING pssid, TSTRING ppassword,
+                                         String pssid, String ppassword,
                                          uint16_t pport) {
   ssid = pssid;
   password = ppassword;

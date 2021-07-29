@@ -1,6 +1,6 @@
 #ifndef _PAINLESS_MESH_PLUGIN_OTA_HPP_
 #define _PAINLESS_MESH_PLUGIN_OTA_HPP_
-#pragma once
+
 
 #include "painlessmesh/configuration.hpp"
 
@@ -83,36 +83,40 @@ class AnnounceSingle : public SinglePackage {
 
   AnnounceSingle() : SinglePackage(10) {}
 
-  AnnounceSingle(JsonObject jsonObj) : SinglePackage(jsonObj) {
-    md5 = jsonObj["md5"].as<TSTRING>();
-    hardware = jsonObj["hardware"].as<TSTRING>();
-    role = jsonObj["role"].as<TSTRING>();
-    if (jsonObj.containsKey("forced")) forced = jsonObj["forced"];
-    noPart = jsonObj["noPart"];
-    from = jsonObj["from"];
-    dest = jsonObj["dest"];
-  }
+  // AnnounceSingle(JsonObject jsonObj) : SinglePackage(jsonObj) {
+  //   md5 = jsonObj["md5"].as<TSTRING>();
+  //   hardware = jsonObj["hardware"].as<TSTRING>();
+  //   role = jsonObj["role"].as<TSTRING>();
+  //   if (jsonObj.containsKey("forced")) forced = jsonObj["forced"];
+  //   noPart = jsonObj["noPart"];
+  //   from = jsonObj["from"];
+  //   dest = jsonObj["dest"];
+  // }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = SinglePackage::addTo(std::move(jsonObj));
-    jsonObj["md5"] = md5;
-    jsonObj["hardware"] = hardware;
-    jsonObj["role"] = role;
-    if (forced) jsonObj["forced"] = forced;
-    jsonObj["noPart"] = noPart;
-    jsonObj["from"] = from;
-    jsonObj["dest"] = dest;
-    return jsonObj;
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj = SinglePackage::addTo(std::move(jsonObj));
+  //   jsonObj["md5"] = md5;
+  //   jsonObj["hardware"] = hardware;
+  //   jsonObj["role"] = role;
+  //   if (forced) jsonObj["forced"] = forced;
+  //   jsonObj["noPart"] = noPart;
+  //   jsonObj["from"] = from;
+  //   jsonObj["dest"] = dest;
+  //   return jsonObj;
+  // }
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 5) +
-           round(1.1 * (md5.length() + hardware.length() + role.length()));
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(noJsonFields + 5) +
+  //          raund(1.1 * (md5.length() + hardware.length() + role.length()));
+  // }
+  uint32_t size() override {
+    return SinglePackage::size() + md5.size() + hardware.size() + role.size() +
+           sizeof(forced) + sizeof(noPart) + sizeof(from) + sizeof(dest);
   }
 
  protected:
   AnnounceSingle(int type, router::Type routing) : SinglePackage(type) {
-    this->routing = routing;
+    this->header.routing = routing;
   }
 };
 
@@ -151,32 +155,36 @@ class Announce : public BroadcastPackage {
 
   Announce() : BroadcastPackage(10) {}
 
-  Announce(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
-    md5 = jsonObj["md5"].as<TSTRING>();
-    hardware = jsonObj["hardware"].as<TSTRING>();
-    role = jsonObj["role"].as<TSTRING>();
-    if (jsonObj.containsKey("forced")) forced = jsonObj["forced"];
-    noPart = jsonObj["noPart"];
-  }
+  // Announce(JsonObject jsonObj) : BroadcastPackage(jsonObj) {
+  //   md5 = jsonObj["md5"].as<TSTRING>();
+  //   hardware = jsonObj["hardware"].as<TSTRING>();
+  //   role = jsonObj["role"].as<TSTRING>();
+  //   if (jsonObj.containsKey("forced")) forced = jsonObj["forced"];
+  //   noPart = jsonObj["noPart"];
+  // }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
-    jsonObj["md5"] = md5;
-    jsonObj["hardware"] = hardware;
-    jsonObj["role"] = role;
-    if (forced) jsonObj["forced"] = forced;
-    jsonObj["noPart"] = noPart;
-    return jsonObj;
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj = BroadcastPackage::addTo(std::move(jsonObj));
+  //   jsonObj["md5"] = md5;
+  //   jsonObj["hardware"] = hardware;
+  //   jsonObj["role"] = role;
+  //   if (forced) jsonObj["forced"] = forced;
+  //   jsonObj["noPart"] = noPart;
+  //   return jsonObj;
+  // }
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 5) +
-           round(1.1 * (md5.length() + hardware.length() + role.length()));
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(noJsonFields + 5) +
+  //          raund(1.1 * (md5.length() + hardware.length() + role.length()));
+  // }
+  uint32_t size() override {
+    return BroadcastPackage::size() + md5.size() + hardware.size() +
+           role.size() + sizeof(forced) + sizeof(noPart) + sizeof(from);
   }
 
  protected:
   Announce(int type, router::Type routing) : BroadcastPackage(type) {
-    this->routing = routing;
+    this->header.routing = routing;
   }
 };
 
@@ -196,17 +204,17 @@ class DataRequest : public Announce {
 
   DataRequest() : Announce(11, router::SINGLE) {}
 
-  DataRequest(JsonObject jsonObj) : Announce(jsonObj) {
-    dest = jsonObj["dest"];
-    partNo = jsonObj["partNo"];
-  }
+  // DataRequest(JsonObject jsonObj) : Announce(jsonObj) {
+  //   dest = jsonObj["dest"];
+  //   partNo = jsonObj["partNo"];
+  // }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = Announce::addTo(std::move(jsonObj));
-    jsonObj["dest"] = dest;
-    jsonObj["partNo"] = partNo;
-    return jsonObj;
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj = Announce::addTo(std::move(jsonObj));
+  //   jsonObj["dest"] = dest;
+  //   jsonObj["partNo"] = partNo;
+  //   return jsonObj;
+  // }
 
   static DataRequest replyTo(const Announce& ann, uint32_t from,
                              size_t partNo) {
@@ -224,10 +232,14 @@ class DataRequest : public Announce {
 
   static DataRequest replyTo(const Data& d, size_t partNo);
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 5 + 2) +
-           round(1.1 * (md5.length() + hardware.length() + role.length()));
+  uint32_t size() override {
+    return Announce::size() + sizeof(partNo) + sizeof(dest);
   }
+
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(noJsonFields + 5 + 2) +
+  //          raund(1.1 * (md5.length() + hardware.length() + role.length()));
+  // }
 
  protected:
   DataRequest(int type) : Announce(type, router::SINGLE) {}
@@ -243,15 +255,17 @@ class Data : public DataRequest {
 
   Data() : DataRequest(12) {}
 
-  Data(JsonObject jsonObj) : DataRequest(jsonObj) {
-    data = jsonObj["data"].as<TSTRING>();
-  }
+  // Data(JsonObject jsonObj) : DataRequest(jsonObj) {
+  //   data = jsonObj["data"].as<TSTRING>();
+  // }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj = DataRequest::addTo(std::move(jsonObj));
-    jsonObj["data"] = data;
-    return jsonObj;
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj = DataRequest::addTo(std::move(jsonObj));
+  //   jsonObj["data"] = data;
+  //   return jsonObj;
+  // }
+
+  uint32_t size() override { return DataRequest::size() + data.size(); }
 
   static Data replyTo(const DataRequest& req, TSTRING data, size_t partNo) {
     Data d;
@@ -267,11 +281,11 @@ class Data : public DataRequest {
     return d;
   }
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(noJsonFields + 5 + 2 + 1) +
-           round(1.1 * (md5.length() + hardware.length() + role.length() +
-                        data.length()));
-  }
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(noJsonFields + 5 + 2 + 1) +
+  //          raund(1.1 * (md5.length() + hardware.length() + role.length() +
+  //                       data.length()));
+  // }
 };
 
 inline DataRequest DataRequest::replyTo(const Data& d, size_t partNo) {
@@ -305,34 +319,40 @@ class State : public protocol::PackageInterface {
   TSTRING role;
   size_t noPart = 0;
   size_t partNo = 0;
-  TSTRING ota_fn = "/ota_fw.json";
+  String ota_fn = "/ota_fw.json";
 
-  State() {}
+  State() : PackageInterface(0, router::SINGLE) {}
 
-  State(JsonObject jsonObj) {
-    md5 = jsonObj["md5"].as<TSTRING>();
-    hardware = jsonObj["hardware"].as<TSTRING>();
-    role = jsonObj["role"].as<TSTRING>();
-  }
+  // State(JsonObject jsonObj) {
+  //   md5 = jsonObj["md5"].as<TSTRING>();
+  //   hardware = jsonObj["hardware"].as<TSTRING>();
+  //   role = jsonObj["role"].as<TSTRING>();
+  // }
 
-  State(const Announce& ann) {
+  State(const Announce& ann) : PackageInterface(0, router::SINGLE) {
     md5 = ann.md5;
     hardware = ann.hardware;
     role = ann.role;
     noPart = ann.noPart;
   }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj["role"] = role;
-    jsonObj["md5"] = md5;
-    jsonObj["hardware"] = hardware;
-    return jsonObj;
+  uint32_t size() override {
+    return protocol::PackageInterface::size() + sizeof(partNo) +
+           sizeof(noPart) + md5.size() + hardware.size() + role.size() +
+           ota_fn.length();
   }
 
-  size_t jsonObjectSize() const {
-    return JSON_OBJECT_SIZE(3) +
-           round(1.1 * (md5.length() + hardware.length() + role.length()));
-  }
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj["role"] = role;
+  //   jsonObj["md5"] = md5;
+  //   jsonObj["hardware"] = hardware;
+  //   return jsonObj;
+  // }
+
+  // size_t jsonObjectSize() const {
+  //   return JSON_OBJECT_SIZE(3) +
+  //          raund(1.1 * (md5.length() + hardware.length() + role.length()));
+  // }
 
   std::shared_ptr<Task> task;
 };
@@ -349,9 +369,10 @@ void addSendPackageCallback(Scheduler& scheduler,
   using namespace logger;
 #if defined(ESP32) || defined(ESP8266)
 
-  mesh.onPackage(11, [&mesh, callback,
-                      otaPartSize](painlessmesh::protocol::Variant variant) {
-    auto pkg = variant.to<painlessmesh::plugin::ota::DataRequest>();
+  mesh.onPackage(11, [&mesh, callback, otaPartSize](
+                         VariantBase* variant) {
+    auto pkgVariant = static_cast<Variant<DataRequest>*>(variant);
+    auto pkg = pkgVariant->to();
     char buffer[otaPartSize + 1];
     memset(buffer, 0, (otaPartSize + 1) * sizeof(char));
     auto size = callback(pkg, buffer);
@@ -360,7 +381,7 @@ void addSendPackageCallback(Scheduler& scheduler,
     // plaintext
     auto b64Data = painlessmesh::base64::encode((unsigned char*)buffer, size);
     auto reply =
-        painlessmesh::plugin::ota::Data::replyTo(pkg, b64Data, pkg.partNo);
+        painlessmesh::plugin::ota::Data::replyTo(pkg, b64Data, pkg->partNo);
 
     Serial.printf("Send Ota Package %zu, %d, ", reply.dest, reply.partNo);
     Serial.println(reply.role);
@@ -392,28 +413,30 @@ void addReceivePackageCallback(Scheduler& scheduler,
     while (file.available()) {
       msg += (char)file.read();
     }
-    auto var = protocol::Variant(msg);
-    auto fw = var.to<State>();
-    if (fw.role == role && fw.hardware == currentFW->hardware) {
-      Log(DEBUG, "MD5 found %s\n", fw.md5.c_str());
-      currentFW->md5 = fw.md5;
+    auto var = Variant<State>();
+    var.deserializeFrom(msg);
+    auto fw = var.to();
+    if (fw->role == role && fw->hardware == currentFW->hardware) {
+      Log(DEBUG, "MD5 found %s\n", fw->md5.c_str());
+      currentFW->md5 = fw->md5;
     }
   }
 
   mesh.onPackage(10, [currentFW, updateFW, &mesh,
-                      &scheduler](protocol::Variant variant) {
+                      &scheduler](VariantBase* variant) {
     // convert variant to Announce
-    auto pkg = variant.to<Announce>();
+    auto pkgVariant = static_cast<Variant<Announce>*>(variant);
+    auto pkg = pkgVariant->to();
     // Check if we want the update
-    if (currentFW->role == pkg.role && currentFW->hardware == pkg.hardware) {
-      if ((currentFW->md5 == pkg.md5 && !pkg.forced) ||
-          updateFW->md5 == pkg.md5)
+    if (currentFW->role == pkg->role && currentFW->hardware == pkg->hardware) {
+      if ((currentFW->md5 == pkg->md5 && !pkg->forced) ||
+          updateFW->md5 == pkg->md5)
         // Either already have it, or already updating to it
         return false;
       else {
         auto request =
             DataRequest::replyTo(pkg, mesh.getNodeId(), updateFW->partNo);
-        updateFW->md5 = pkg.md5;
+        updateFW->md5 = pkg->md5;
         // enable the request task
         updateFW->task =
             mesh.addTask(scheduler, 30 * TASK_SECOND, 10,
@@ -433,13 +456,14 @@ void addReceivePackageCallback(Scheduler& scheduler,
   // });
 
   mesh.onPackage(12, [currentFW, updateFW, &mesh,
-                      &scheduler](protocol::Variant variant) {
-    auto pkg = variant.to<Data>();
+                      &scheduler](VariantBase* variant) {
+    auto pkgVariant = static_cast<Variant<Data>*>(variant);
+    auto pkg = pkgVariant->to();
     // Check whether it is a new part, of correct md5 role etc etc
-    if (updateFW->partNo == pkg.partNo && updateFW->md5 == pkg.md5 &&
-        updateFW->role == pkg.role && updateFW->hardware == pkg.hardware) {
+    if (updateFW->partNo == pkg->partNo && updateFW->md5 == pkg->md5 &&
+        updateFW->role == pkg->role && updateFW->hardware == pkg->hardware) {
       // If so write
-      if (pkg.partNo == 0) {
+      if (pkg->partNo == 0) {
 #ifdef ESP32
         uint32_t maxSketchSpace = UPDATE_SIZE_UNKNOWN;
 #else
@@ -455,12 +479,12 @@ void addReceivePackageCallback(Scheduler& scheduler,
           Update.printError(Serial);
           Update.end();
         } else {
-          Update.setMD5(pkg.md5.c_str());
+          Update.setMD5(pkg->md5.c_str());
         }
       }
 
       //    write data
-      auto b64Data = base64::decode(pkg.data);
+      auto b64Data = base64::decode(pkg->data);
       if (Update.write((uint8_t*)b64Data.c_str(), b64Data.length()) !=
           b64Data.length()) {
         Log(ERROR, "handleOTA(): OTA write failed!");
@@ -472,15 +496,21 @@ void addReceivePackageCallback(Scheduler& scheduler,
       }
 
       // If last part then write ota_fn and reboot
-      if (pkg.partNo == pkg.noPart - 1) {
+      if (pkg->partNo == pkg->noPart - 1) {
         //       check md5, reboot
         if (Update.end(true)) {  // true to set the size to the
                                  // current progress
           auto file = LittleFS.open(updateFW->ota_fn, "w");
-          String msg;
-          auto var = protocol::Variant(updateFW.get());
-          var.printTo(msg);
-          file.print(msg);
+          std::string msg;
+          auto var = Variant<State>(updateFW.get());
+          var.serializeTo(msg);
+#ifdef ESP32
+          file.write(reinterpret_cast<const uint8_t*>(msg.c_str()),
+                     msg.length());
+#else
+          file.write(msg.c_str(), msg.length());
+#endif
+
           file.close();
 
           Log(DEBUG, "handleOTA(): OTA Success! %s, %s\n", msg.c_str(),
@@ -497,7 +527,7 @@ void addReceivePackageCallback(Scheduler& scheduler,
       } else {
         // else request more
         ++updateFW->partNo;
-        auto request = DataRequest::replyTo(pkg, updateFW->partNo);
+        auto request = DataRequest::replyTo(*pkg, updateFW->partNo);
         updateFW->task->setCallback(
             [request, &mesh]() { mesh.sendPackage(&request); });
         // updateFW->task->disable();
@@ -511,6 +541,50 @@ void addReceivePackageCallback(Scheduler& scheduler,
 
 }  // namespace ota
 }  // namespace plugin
-}  // namespace painlessmesh
+
+
+template <>
+class Variant<plugin::ota::State>
+    : public TypedVariantBase<plugin::ota::State> {
+ public:
+  Variant(plugin::ota::State* state, bool cleanup = false)
+      : TypedVariantBase<plugin::ota::State>(state, cleanup) {}
+  void serializeTo(std::string& str) override {
+    int offset = 0;
+    package->header.serializeTo(str, offset);
+    SerializeHelper::serialize(&package->from, str, offset);
+    auto node = static_cast<protocol::NodeTree*>(package);
+    SerializeHelper::serialize(node, str, offset);
+  }
+  void deserializeFrom(const std::string& str) override {
+    int offset = 0;
+    package->header.deserializeFrom(str, offset);
+    SerializeHelper::deserialize(&package->from, str, offset);
+    auto node = static_cast<protocol::NodeTree*>(package);
+    SerializeHelper::deserialize(node, str, offset);
+  }
+};
+
+template <>
+class Variant<plugin::ota::State>
+    : public TypedVariantBase<plugin::ota::State> {
+ public:
+  Variant(plugin::ota::State* state, bool cleanup = false)
+      : TypedVariantBase<plugin::ota::State>(state, cleanup) {}
+  void serializeTo(std::string& str) override {
+    int offset = 0;
+    package->header.serializeTo(str, offset);
+    SerializeHelper::serialize(&package->from, str, offset);
+    auto node = static_cast<protocol::NodeTree*>(package);
+    SerializeHelper::serialize(node, str, offset);
+  }
+  void deserializeFrom(const std::string& str) override {
+    int offset = 0;
+    package->header.deserializeFrom(str, offset);
+    SerializeHelper::deserialize(&package->from, str, offset);
+    auto node = static_cast<protocol::NodeTree*>(package);
+    SerializeHelper::deserialize(node, str, offset);
+  }
+};
 
 #endif

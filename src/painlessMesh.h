@@ -1,7 +1,7 @@
 #ifndef _EASY_MESH_H_
 #define _EASY_MESH_H_
 
-#define _TASK_PRIORITY  // Support for layered scheduling priority
+ #define _TASK_PRIORITY  // Support for layered scheduling priority
 #define _TASK_STD_FUNCTION
 
 #include <Arduino.h>
@@ -17,8 +17,8 @@
 #include <ESPAsyncTCP.h>
 #endif  // ESP32
 
-#ifdef PAINLESSMESH_ENABLE_ARDUINO_WIFI
 #include "painlessMeshConnection.h"
+#ifdef PAINLESSMESH_ENABLE_ARDUINO_WIFI
 #include "painlessMeshSTA.h"
 
 #include "arduino/wifi.hpp"

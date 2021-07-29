@@ -5,8 +5,11 @@
 #include "painlessmesh/configuration.hpp"
 
 #include "painlessmesh/router.hpp"
+#include "painlessmesh/variant.hpp"
 
 namespace painlessmesh {
+
+
 
 /** Plugin interface for painlessMesh packages/messages
  *
@@ -38,60 +41,73 @@ namespace plugin {
 class SinglePackage : public protocol::PackageInterface {
  public:
   uint32_t from;
-  uint32_t dest;
-  router::Type routing;
-  int type;
-  int noJsonFields = 4;
 
-  SinglePackage(int type) : routing(router::SINGLE), type(type) {}
+  SinglePackage() : PackageInterface(protocol::SINGLE, router::SINGLE) {}
 
-  SinglePackage(JsonObject jsonObj) {
-    from = jsonObj["from"];
-    dest = jsonObj["dest"];
-    type = jsonObj["type"];
-    routing = static_cast<router::Type>(jsonObj["routing"].as<int>());
-  }
+  SinglePackage(protocol::ProtocolHeader header)
+      : PackageInterface(header){}
+  SinglePackage(uint16_t type) : PackageInterface(type, router::SINGLE) {}
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj["from"] = from;
-    jsonObj["dest"] = dest;
-    jsonObj["routing"] = static_cast<int>(routing);
-    jsonObj["type"] = type;
-    return jsonObj;
-  }
+  uint32_t size() { return PackageInterface::size() + sizeof(from); }
+
+  // SinglePackage(JsonObject jsonObj) {
+  //   from = jsonObj["from"];
+  //   dest = jsonObj["dest"];
+  //   type = jsonObj["type"];
+  //   routing = static_cast<router::Type>(jsonObj["routing"].as<int>());
+  // }
+
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj["from"] = from;
+  //   jsonObj["dest"] = dest;
+  //   jsonObj["routing"] = static_cast<int>(routing);
+  //   jsonObj["type"] = type;
+  //   return jsonObj;
+  // }
 };
 
 class BroadcastPackage : public protocol::PackageInterface {
  public:
   uint32_t from;
-  router::Type routing;
-  int type;
-  int noJsonFields = 3;
 
-  BroadcastPackage(int type) : routing(router::BROADCAST), type(type) {}
+  BroadcastPackage()
+      : PackageInterface(protocol::BROADCAST, router::BROADCAST){}
 
-  BroadcastPackage(JsonObject jsonObj) {
-    from = jsonObj["from"];
-    type = jsonObj["type"];
-    routing = static_cast<router::Type>(jsonObj["routing"].as<int>());
+      
+  BroadcastPackage(protocol::ProtocolHeader header)
+      : PackageInterface(header){}
+
+  BroadcastPackage(uint16_t type)
+      : PackageInterface(type, router::BROADCAST) {}
+
+  uint32_t size() override {
+    return PackageInterface::size() + sizeof(from);
   }
 
-  JsonObject addTo(JsonObject&& jsonObj) const {
-    jsonObj["from"] = from;
-    jsonObj["routing"] = static_cast<int>(routing);
-    jsonObj["type"] = type;
-    return jsonObj;
-  }
+  // BroadcastPackage(JsonObject jsonObj) {
+  //   from = jsonObj["from"];
+  //   type = jsonObj["type"];
+  //   routing = static_cast<router::Type>(jsonObj["routing"].as<int>());
+  // }
+
+  // JsonObject addTo(JsonObject&& jsonObj) const {
+  //   jsonObj["from"] = from;
+  //   jsonObj["routing"] = static_cast<int>(routing);
+  //   jsonObj["type"] = type;
+  //   return jsonObj;
+  // }
 };
 
 class NeighbourPackage : public plugin::SinglePackage {
  public:
-  NeighbourPackage(int type) : SinglePackage(type) {
-    routing = router::NEIGHBOUR;
+ 
+  NeighbourPackage(protocol::ProtocolHeader header)
+      : SinglePackage(header){}
+  NeighbourPackage(protocol::Type type) : SinglePackage(type) {
+    header.routing = router::NEIGHBOUR;
   }
-
-  NeighbourPackage(JsonObject jsonObj) : SinglePackage(jsonObj) {}
 };
+
 
 /**
  * Handle different plugins
@@ -112,15 +128,16 @@ class PackageHandler : public layout::Layout<T> {
     taskList.clear();
   }
 
-  ~PackageHandler() {
+  virtual ~PackageHandler() {
     if (taskList.size() > 0)
       Log(logger::ERROR,
           "~PackageHandler(): Always call PackageHandler::stop(scheduler) "
           "before calling this destructor");
   }
 
-  bool sendPackage(const protocol::PackageInterface* pkg) {
-    auto variant = protocol::Variant(pkg);
+  template <typename P>
+  bool sendPackage(const P* pkg) {
+    auto variant = Variant<P>(pkg);
     // if single or neighbour with direction
     if (variant.routing() == router::SINGLE ||
         (variant.routing() == router::NEIGHBOUR && variant.dest() != 0)) {
@@ -137,8 +154,9 @@ class PackageHandler : public layout::Layout<T> {
     return false;
   }
 
-  void onPackage(int type, std::function<bool(protocol::Variant)> function) {
-    auto func = [function](protocol::Variant var, std::shared_ptr<T>,
+  void onPackage(int type,
+                 std::function<bool(painlessmesh::VariantBase*)> function) {
+    auto func = [function](painlessmesh::VariantBase* var, std::shared_ptr<T>,
                            uint32_t) { return function(var); };
     this->callbackList.onPackage(type, func);
   }
@@ -182,6 +200,57 @@ class PackageHandler : public layout::Layout<T> {
 };
 
 }  // namespace plugin
+
+
+template <>
+class Variant<plugin::SinglePackage>
+    : public TypedVariantBase<plugin::SinglePackage> {
+ public:
+  Variant(plugin::SinglePackage* single, bool cleanup = false)
+      : TypedVariantBase<plugin::SinglePackage>(single, cleanup) {}
+  void serializeTo(std::string& str, int& offset ) override {
+    package->header.serializeTo(str, offset);
+    SerializeHelper::serialize(&package->from, str, offset);
+  }
+  void deserializeFrom(const std::string& str) override {
+    int offset = 0;
+    package->header.deserializeFrom(str, offset);
+    SerializeHelper::deserialize(&package->from, str, offset);
+  }
+};
+
+template <>
+class Variant<plugin::BroadcastPackage>
+    : public TypedVariantBase<plugin::BroadcastPackage> {
+ public:
+  Variant(plugin::BroadcastPackage* broadcast, bool cleanup = false)
+      : TypedVariantBase<plugin::BroadcastPackage>(broadcast, cleanup) {}
+  void serializeTo(std::string& str, int& offset ) override {
+    package->header.serializeTo(str, offset);
+    SerializeHelper::serialize(&package->from, str, offset);
+  }
+  void deserializeFrom(const std::string& str) override {
+    int offset = 0;
+    package->header.deserializeFrom(str, offset);
+    SerializeHelper::deserialize(&package->from, str, offset);
+  }
+};
+
+template <>
+class Variant<plugin::NeighbourPackage>
+    : public TypedVariantBase<plugin::NeighbourPackage> {
+ public:
+  Variant(plugin::NeighbourPackage* neighbour, bool cleanup = false)
+      : TypedVariantBase<plugin::NeighbourPackage>(neighbour, cleanup) {}
+  void serializeTo(std::string& str, int& offset ) override {
+    package->header.serializeTo(str, offset);
+    SerializeHelper::serialize(&package->from, str, offset);
+  }
+  void deserializeFrom(const std::string& str) override {
+    int offset = 0;
+    package->header.deserializeFrom(str, offset);
+    SerializeHelper::deserialize(&package->from, str, offset);
+  }
+};
 }  // namespace painlessmesh
 #endif
-

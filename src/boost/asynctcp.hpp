@@ -37,14 +37,14 @@ class AsyncClient {
     namespace ip = boost::asio::ip;
     auto endpoint = ip::tcp::endpoint(ipaddress, port);
 
-    mSocket.async_connect(endpoint, [&](auto& ec) { this->handleConnect(ec); });
+    mSocket.async_connect(endpoint, [&](const auto& ec) { this->handleConnect(ec); });
     return true;
   }
 
   void initRead() {
     mSocket.async_read_some(
         boost::asio::buffer(mInputBuffer, TCP_MSS),
-        [&](auto& ec, auto len) { this->handleData(ec, len); });
+        [&](const auto& ec, auto len) { this->handleData(ec, len); });
   }
 
   size_t write(const void* data, size_t len,
@@ -55,11 +55,11 @@ class AsyncClient {
       memcpy(mWriteBuffer, data, len);
       mSocket.async_send(
           boost::asio::buffer(mWriteBuffer, len),
-          [&](auto& ec, auto len) { this->handleWrite(ec, len); });
+          [&](const auto& ec, auto len) { this->handleWrite(ec, len); });
     } else {
       mSocket.async_send(
           boost::asio::buffer(data, len),
-          [&](auto& ec, auto len) { this->handleWrite(ec, len); });
+          [&](const auto& ec, auto len) { this->handleWrite(ec, len); });
     }
     return len;
   }
@@ -255,7 +255,11 @@ class AsyncServer {
   void* _connect_cb_arg = 0;
 
   void initAccept() {
+#if BOOST_VERSION < 106000
     AsyncClient* client = new AsyncClient(mAcceptor.get_io_service());
+#else
+    AsyncClient* client = new AsyncClient((boost::asio::io_context&)(mAcceptor).get_executor().context());    
+#endif
     mAcceptor.async_accept(
         client->socket(), [this, client](const boost::system::error_code& e) {
           if (!e && this->_connect_cb) {

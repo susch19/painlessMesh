@@ -7,7 +7,7 @@
 
 typedef struct {
   uint8_t bssid[6];
-  TSTRING ssid;
+  String ssid;
   int8_t rssi;
 } WiFi_AP_Record_t;
 
@@ -16,7 +16,7 @@ class StationScan {
   Task task;  // Station scanning for connections
 
   StationScan() {}
-  void init(painlessmesh::wifi::Mesh *pMesh, TSTRING ssid, TSTRING password,
+  void init(painlessmesh::wifi::Mesh *pMesh, String ssid, String password,
             uint16_t port);
   void stationScan();
   void scanComplete();
@@ -24,8 +24,8 @@ class StationScan {
   void connectToAP();
 
  protected:
-  TSTRING ssid;
-  TSTRING password;
+  String ssid;
+  String password;
   painlessMesh *mesh;
   uint16_t port;
   std::list<WiFi_AP_Record_t> aps;

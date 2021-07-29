@@ -84,7 +84,7 @@ class Neighbour : public protocol::NodeTree {
    * If not then the caller of this function should probably disconnect
    * this neighbour.
    */
-  bool validSubs(protocol::NodeTree tree) {
+  bool validSubs(protocol::NodeTree &tree) {
     if (nodeId == 0)  // Cant really know, so valid as far as we know
       return true;
     if (nodeId != tree.nodeId) return false;
