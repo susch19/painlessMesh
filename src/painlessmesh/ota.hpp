@@ -383,7 +383,7 @@ void addSendPackageCallback(Scheduler& scheduler,
     auto reply =
         painlessmesh::plugin::ota::Data::replyTo(pkg, b64Data, pkg->partNo);
 
-    Serial.printf("Send Ota Package %zu, %d, ", reply.dest, reply.partNo);
+    Serial.printf_P(PSTR("Send Ota Package %zu, %d, "), reply.dest, reply.partNo);
     Serial.println(reply.role);
     mesh.sendPackage(&reply);
     return true;
