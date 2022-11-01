@@ -2,10 +2,10 @@
 #define _PAINLESS_MESH_BUFFER_HPP_
 
 #include <list>
+#include <string>
 
 #include "Arduino.h"
 #include "painlessmesh/configuration.hpp"
-
 #ifndef TCP_MSS
 #define TCP_MSS 1024
 #endif

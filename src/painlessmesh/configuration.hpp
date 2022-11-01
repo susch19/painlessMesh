@@ -1,3 +1,8 @@
+
+#ifndef TCP_MSS
+#define TCP_MSS = 1024;
+#endif
+
 #include "Arduino.h"
 #ifndef _PAINLESS_MESH_CONFIGURATION_HPP_
 #define _PAINLESS_MESH_CONFIGURATION_HPP_
@@ -17,6 +22,7 @@
 
 #define NODE_TIMEOUT 5 * TASK_SECOND
 #define SCAN_INTERVAL 30 * TASK_SECOND  // AP scan period in ms
+
 
 #ifdef ESP32
 #include <WiFi.h>

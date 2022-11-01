@@ -79,7 +79,7 @@ void MeshConnection::initTCPCallbacks() {
             // gdb_do_break();
           }
 #endif
-
+        
           auto bufferSize = len + self->readBuffer.size();
           int lenLeft = bufferSize;
           if (self->readBuffer.size() < self->lengthRemaining)
@@ -146,6 +146,7 @@ void MeshConnection::initTCPCallbacks() {
 }
 
 void MeshConnection::pushStdStr(std::string str) {
+  str.shrink_to_fit();
   receiveBuffer.push(str);
   readBufferTask.forceNextIteration();
 }
