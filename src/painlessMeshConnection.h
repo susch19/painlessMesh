@@ -32,16 +32,17 @@ class MeshConnection : public painlessmesh::layout::Neighbour,
   bool connected = true;
   bool station = true;
   int lengthRemaining = 0;
-  std::string readBuffer;
+  TSTRING readBuffer;
 
   // Timestamp to be compared in manageConnections() to check response
   // for timeout
   uint32_t timeDelayLastRequested = 0;
 
-  bool addMessage(std::string &message, bool priority = false);
+  bool addMessage(TSTRING &&message, bool priority = false);
+  bool addMessageCopy(TSTRING message, bool priority = false);
   bool writeNext();
-  painlessmesh::buffer::ReceiveBuffer<std::string> receiveBuffer;
-  painlessmesh::buffer::SentBuffer<std::string> sentBuffer;
+  painlessmesh::buffer::ReceiveBuffer<TSTRING> receiveBuffer;
+  painlessmesh::buffer::SentBuffer<TSTRING> sentBuffer;
 
   Task nodeSyncTask;
   Task timeSyncTask;
@@ -55,9 +56,9 @@ class MeshConnection : public painlessmesh::layout::Neighbour,
 
   void initTCPCallbacks();
   void initTasks();
-  void pushStdStr(std::string str);
+  void pushStdStr(TSTRING str);
 
-  void handleMessage(std::string msg, uint32_t receivedAt);
+  void handleMessage(TSTRING msg, uint32_t receivedAt);
 
   void close();
 

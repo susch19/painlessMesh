@@ -2,7 +2,7 @@
 #define _PAINLESS_MESH_SERIALIZER_HPP_
 
 #include "painlessmesh/nodeTree.hpp"
-#include "typetraitsExtension.hpp"
+// #include "espserializer.hpp"
 #include "serializer.hpp"
 #if defined(DebugWithDebugger) && defined(ESP8266)
 // #include <GDBStub.h>
@@ -11,7 +11,7 @@
 
 template <>
 struct InternalSerializer<painlessmesh::protocol::NodeTree, void> {
-  static void deserialize(painlessmesh::protocol::NodeTree* dest, const std::string& str,
+  static void deserialize(painlessmesh::protocol::NodeTree* dest, const TSTRING& str,
                           int& offset) {
     SerializeHelper::deserialize(&dest->nodeId, str, offset);
     SerializeHelper::deserialize(&dest->root, str, offset);
@@ -25,7 +25,7 @@ struct InternalSerializer<painlessmesh::protocol::NodeTree, void> {
     }
   }
 
-  static void serialize(const painlessmesh::protocol::NodeTree* source, std::string& str,
+  static void serialize(const painlessmesh::protocol::NodeTree* source, TSTRING& str,
                         int& offset) {
     SerializeHelper::serialize(&source->nodeId, str, offset);
     SerializeHelper::serialize(&source->root, str, offset);
@@ -38,5 +38,6 @@ struct InternalSerializer<painlessmesh::protocol::NodeTree, void> {
     }
   }
 };
+
 
 #endif

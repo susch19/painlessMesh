@@ -18,6 +18,7 @@
 extern painlessmesh::logger::LogClass Log;
 
 namespace painlessmesh {
+using namespace logger;
 
 /**
  * Helper functions to route messages
@@ -41,11 +42,11 @@ std::shared_ptr<T> findRoute(layout::Layout<T> tree, uint32_t nodeId) {
 template <class T, class U>
 bool send(T& package, std::shared_ptr<U> conn, bool priority = false) {
   auto variant = Variant<T>(&package);
-  std::string msg;
+  TSTRING msg;
   msg.resize(package.size() + sizeof(int));
   int offset = sizeof(int);
   variant.serializeTo(msg, offset);
-  return conn->addMessage(msg, priority);
+  return conn->addMessage(std::move(msg), priority);
 }
 
 template <class T, class U>
@@ -54,39 +55,39 @@ bool send(Variant<T>* variant, std::shared_ptr<U> conn, bool priority = false) {
   msg.resize(variant->size() + sizeof(int));
   int offset = sizeof(int);
   variant->serializeTo(msg, offset);
-  return conn->addMessage(msg, priority);
+  return conn->addMessage(std::move(msg), priority);
 }
 
 template <class T, class U>
 bool send(T& package, layout::Layout<U> layout) {
   auto variant = Variant<T>(&package);
-  std::string msg;
+  TSTRING msg;
   msg.resize(package.size() + sizeof(int));
   int offset = sizeof(int);
   variant.serializeTo(msg, offset);
   auto conn = findRoute<U>(layout, variant.package->header.dest);
-  if (conn) return conn->addMessage(msg);
+  if (conn) return conn->addMessage(std::move(msg));
   return false;
 }
 
 template <class T, class U>
 bool send(Variant<T>* variant, layout::Layout<U> layout) {
-  std::string msg;
+  TSTRING msg;
 
   msg.resize(variant->size() + sizeof(int));
   int offset = sizeof(int);
   variant->serializeTo(msg, offset);
   auto conn = findRoute<U>(layout, variant->package->dest());
-  if (conn) return conn->addMessage(msg);
+  if (conn) return conn->addMessage(std::move(msg));
   return false;
 }
 template <class U>
-bool send(std::string& msg, protocol::ProtocolHeader& header,
+bool send(TSTRING& msg, protocol::ProtocolHeader& header,
           layout::Layout<U> layout) {
   auto conn = findRoute<U>(layout, header.dest);
   if (conn) {
     msg.insert(0, 4, '\0');
-    return conn->addMessage(msg);
+    return conn->addMessage(std::move(msg));
   }
   return false;
 }
@@ -94,15 +95,24 @@ bool send(std::string& msg, protocol::ProtocolHeader& header,
 template <class T, class U>
 size_t broadcast(T& package, layout::Layout<U> layout, uint32_t exclude) {
   auto variant = Variant<T>(&package);
-  std::string msg;
+  TSTRING msg;
+  Log(DEBUG, "broadcast(): msg length=%zu, FreeRam: %zu\n", package.size(),
+      ESP.getFreeHeap());
   msg.resize(package.size() + sizeof(int));
+  Log(DEBUG, "broadcast(): msg length=%zu, FreeRam: %zu\n", msg.size(),
+      ESP.getFreeHeap());
+
   int offset = sizeof(int);
   variant.serializeTo(msg, offset);
+  Log(DEBUG, "broadcast(): serialized msg length=%zu, FreeRam: %zu\n",
+      msg.size(), ESP.getFreeHeap());
 
   size_t i = 0;
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
-      auto sent = conn->addMessage(msg);
+      auto sent = conn->addMessageCopy(msg);
+      Log(DEBUG, "broadcast(): added msg length=%zu, FreeRam: %zu\n",
+          msg.size(), ESP.getFreeHeap());
       if (sent) ++i;
     }
   }
@@ -112,14 +122,14 @@ size_t broadcast(T& package, layout::Layout<U> layout, uint32_t exclude) {
 template <class T>
 size_t broadcast(VariantBase* variant, layout::Layout<T> layout,
                  uint32_t exclude) {
-  std::string msg;
+  TSTRING msg;
   msg.resize(variant->size() + sizeof(int));
   int offset = sizeof(int);
   variant->serializeTo(msg, offset);
   size_t i = 0;
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
-      auto sent = conn->addMessage(msg);
+      auto sent = conn->addMessageCopy(msg);
       if (sent) ++i;
     }
   }
@@ -127,12 +137,12 @@ size_t broadcast(VariantBase* variant, layout::Layout<T> layout,
 }
 
 template <class T>
-size_t broadcast(std::string& msg, layout::Layout<T> layout, uint32_t exclude) {
+size_t broadcast(TSTRING& msg, layout::Layout<T> layout, uint32_t exclude) {
   size_t i = 0;
   msg.insert(0, 4, '\0');
   for (auto&& conn : layout.subs) {
     if (conn->nodeId != 0 && conn->nodeId != exclude) {
-      auto sent = conn->addMessage(msg);
+      auto sent = conn->addMessageCopy(msg);
       if (sent) ++i;
     }
   }
@@ -141,7 +151,7 @@ size_t broadcast(std::string& msg, layout::Layout<T> layout, uint32_t exclude) {
 
 template <class T>
 void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
-                  TSTRING pkg, callback::MeshPackageCallbackList<T> cbl,
+                  TSTRING& pkg, callback::MeshPackageCallbackList<T> cbl,
                   uint32_t receivedAt) {
   using namespace logger;
 
@@ -157,7 +167,7 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
         "routePackage(): Recvd header with unknown routing %zu. Message is "
         "going to be dismissed!\n",
         header.routing);
-        return;
+    return;
   }
   Log(COMMUNICATION,
       "routePackage(): Recvd header type:%zu, route:%zu, dest:%zu\n",
@@ -183,9 +193,13 @@ void routePackage(layout::Layout<T> layout, std::shared_ptr<T> connection,
         cbl.execute(header.type, variant.get(), connection,
                     receivedAt);  // VariantBase*, std::shared_ptr<T>, uint32_t
   } else {
-    Log(ERROR, "routePackage(): Got a Message with an unkown package type %zu. This message won't be processed locally%s", 
-    header.type, 
-    header.routing == BROADCAST ? ", but will be broadcasted to the other nodes": ".");
+    Log(ERROR,
+        "routePackage(): Got a Message with an unkown package type %zu. This "
+        "message won't be processed locally%s",
+        header.type,
+        header.routing == BROADCAST
+            ? ", but will be broadcasted to the other nodes"
+            : ".");
   }
   // Log(DEBUG, "routePackage(): %zu callbacks executed; %zu\n", calls,
   //     variant->type());

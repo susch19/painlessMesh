@@ -23,6 +23,7 @@
 #define NODE_TIMEOUT 5 * TASK_SECOND
 #define SCAN_INTERVAL 30 * TASK_SECOND  // AP scan period in ms
 
+#include <string.hpp>
 
 #ifdef ESP32
 #include <WiFi.h>
@@ -32,7 +33,10 @@
 #include <ESPAsyncTCP.h>
 #endif // ESP32
 
-typedef std::string TSTRING;
+// typedef std::string TSTRING;
+// typedef std::stringstream TSTRINGSTREAM;
+typedef esptility::string TSTRING;
+typedef esptility::string TSTRINGSTREAM;
 
 // backward compatibility
 template <typename T>

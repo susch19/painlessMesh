@@ -39,12 +39,13 @@ class NodeTree {
 
   bool operator!=(const NodeTree& b) const { return !this->operator==(b); }
 
-  std::string toString(bool pretty = false) {
+  TSTRING toString(bool pretty = false) {
     /*{"nodeId":1,"subs":[{"nodeId":763956430,"root":true,"subs":[{"nodeId":763955710},{"nodeId":3257231619,"subs":[{"nodeId":3257168800,"subs":[{"nodeId":3257168818,"subs":[{"nodeId":3257232294}]}]}]},{"nodeId":3257233774},{"nodeId":3257144719,"subs":[{"nodeId":3257153413},{"nodeId":3257232527}]}]}]}*/
-    std::stringstream ss;
+    TSTRINGSTREAM ss;
     toString(pretty, ss);
 
-    return ss.str();
+    // return ss.str();
+    return ss;
   }
 
   uint32_t size() {
@@ -63,7 +64,7 @@ class NodeTree {
   }
 
  private:
-  void toString(bool pretty, std::stringstream& ss) {
+  void toString(bool pretty, TSTRINGSTREAM& ss) {
     ss << "{\"nodeId\":" << nodeId;
     if (root) ss << ",\"root\":true";
     if (subs.size() > 0) {

@@ -4,7 +4,7 @@
 
 #include "painlessmesh/configuration.hpp"
 
-#include "painlessmesh/base64.hpp"
+#include "espbase64.hpp"
 #include "painlessmesh/logger.hpp"
 #include "painlessmesh/plugin.hpp"
 
@@ -501,7 +501,7 @@ void addReceivePackageCallback(Scheduler& scheduler,
         if (Update.end(true)) {  // true to set the size to the
                                  // current progress
           auto file = LittleFS.open(updateFW->ota_fn, "w");
-          std::string msg;
+          TSTRING msg;
           auto var = Variant<State>(updateFW.get());
           var.serializeTo(msg);
 #ifdef ESP32
@@ -549,14 +549,14 @@ class Variant<plugin::ota::State>
  public:
   Variant(plugin::ota::State* state, bool cleanup = false)
       : TypedVariantBase<plugin::ota::State>(state, cleanup) {}
-  void serializeTo(std::string& str) override {
+  void serializeTo(TSTRING& str) override {
     int offset = 0;
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
     auto node = static_cast<protocol::NodeTree*>(package);
     SerializeHelper::serialize(node, str, offset);
   }
-  void deserializeFrom(const std::string& str) override {
+  void deserializeFrom(const TSTRING& str) override {
     int offset = 0;
     package->header.deserializeFrom(str, offset);
     SerializeHelper::deserialize(&package->from, str, offset);
@@ -571,14 +571,14 @@ class Variant<plugin::ota::State>
  public:
   Variant(plugin::ota::State* state, bool cleanup = false)
       : TypedVariantBase<plugin::ota::State>(state, cleanup) {}
-  void serializeTo(std::string& str) override {
+  void serializeTo(TSTRING& str) override {
     int offset = 0;
     package->header.serializeTo(str, offset);
     SerializeHelper::serialize(&package->from, str, offset);
     auto node = static_cast<protocol::NodeTree*>(package);
     SerializeHelper::serialize(node, str, offset);
   }
-  void deserializeFrom(const std::string& str) override {
+  void deserializeFrom(const TSTRING& str) override {
     int offset = 0;
     package->header.deserializeFrom(str, offset);
     SerializeHelper::deserialize(&package->from, str, offset);

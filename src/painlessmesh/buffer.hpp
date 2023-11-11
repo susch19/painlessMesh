@@ -56,10 +56,7 @@ class ReceiveBuffer {
   //   } while (length > 0);
   // }
 
-  void push(std::string cstr) {
-
-    jsonStrings.push_back(cstr);
-  }
+  void push(TSTRING cstr) { jsonStrings.push_back(cstr); }
 
   /**
    * Get the oldest message from the buffer
@@ -70,9 +67,16 @@ class ReceiveBuffer {
   }
 
   /**
-   * Remove the oldest message from the buffer
+   * Remove the oldest message from the buffer and returns it
    */
-  void pop_front() { jsonStrings.pop_front(); }
+  T &&pop_front() {
+    if (!empty()) {
+      auto& t = (*jsonStrings.begin());
+      jsonStrings.pop_front();
+      return std::move(t);
+    }
+    return T();
+  }
 
   /**
    * Is the buffer empty
@@ -93,24 +97,24 @@ class ReceiveBuffer {
 
   /**
    * Helper function to deal with difference Arduino String
-   * and std::string
+   * and TSTRING
    */
   inline void stringAppend(T &buffer, T &newBuffer) { buffer += newBuffer; };
 };
 
 // #ifdef PAINLESSMESH_ENABLE_STD_STRING
 template <>
-inline void ReceiveBuffer<std::string>::stringAppend(std::string &buffer,
-                                                     std::string &newBuffer) {
+inline void ReceiveBuffer<TSTRING>::stringAppend(TSTRING &buffer,
+                                                 TSTRING &newBuffer) {
   buffer.append(newBuffer);
 }
 
 // template <>
-// void ReceiveBuffer<std::string>::push(const char *cstr, size_t length,
+// void ReceiveBuffer<TSTRING>::push(const char *cstr, size_t length,
 //                                       temp_buffer_t &buf) {
-//   buffer = std::string(cstr, length);
+//   buffer = TSTRING(cstr, length);
 //   jsonStrings.push_back(buffer);
-//   buffer = std::string();
+//   buffer = TSTRING();
 // }
 // #endif
 
@@ -130,14 +134,14 @@ class SentBuffer {
    *
    * High priority messages will be sent to the front of the buffer
    */
-  void push(T message, bool priority = false) {
+  void push(T &&message, bool priority = false) {
     if (priority) {
       if (clean)
-        jsonStrings.push_front(message);
+        jsonStrings.push_front(std::move(message));
       else
-        jsonStrings.insert((++jsonStrings.begin()), message);
+        jsonStrings.insert((++jsonStrings.begin()), std::move(message));
     } else
-      jsonStrings.push_back(message);
+      jsonStrings.push_back(std::move(message));
   }
 
   /**
@@ -152,8 +156,8 @@ class SentBuffer {
       // String.toCharArray automatically turns the last character into
       // a \0, we need the extra space to deal with that annoyance
 
-          // buffer_length, jsonStrings.begin()->size());
-    return std::min(buffer_length, jsonStrings.begin()->size());
+      // buffer_length, jsonStrings.begin()->size());
+      return std::min(buffer_length, jsonStrings.begin()->size());
   }
 
   /**
@@ -171,7 +175,7 @@ class SentBuffer {
   //   // Note that toCharrArray always null terminates
   //   // independent of whether the whole string was read so we use one extra
   //   // space
-  //   std::string asd;
+  //   TSTRING asd;
   //   jsonStrings.front().toCharArray(buf.buffer, length + 1);
   //   last_read_size = length;
   // }
@@ -222,7 +226,7 @@ class SentBuffer {
 };
 
 // template <>
-// inline void SentBuffer<std::string>::read(size_t length, temp_buffer_t &buf)
+// inline void SentBuffer<TSTRING>::read(size_t length, temp_buffer_t &buf)
 // {
 //   jsonStrings.front().copy(buf.buffer, length);
 //   // Mimic String.toCharArray behaviour, which will insert
@@ -233,10 +237,30 @@ class SentBuffer {
 // }
 
 template <>
-inline void SentBuffer<std::string>::stringEraseFront(std::string &string,
-                                                      size_t length) {
+inline void SentBuffer<TSTRING>::stringEraseFront(TSTRING &string,
+                                                  size_t length) {
   string.erase(0, length);
 };
+
+template <>
+inline size_t SentBuffer<esptility::string>::requestLength(
+    size_t buffer_length) {
+  if (jsonStrings.empty()) {
+    return 0;
+  } else
+    // String.toCharArray automatically turns the last character into
+    // a \0, we need the extra space to deal with that annoyance
+
+    // buffer_length, jsonStrings.begin()->size());
+    return std::min(buffer_length, std::min(jsonStrings.begin()->size(),
+                                            (size_t)STRINGBLOCKSIZE));
+}
+
+template <>
+inline const char *SentBuffer<esptility::string>::readPtr(size_t length) {
+  last_read_size = length;
+  return jsonStrings.front().get_block(0);
+}
 
 }  // namespace buffer
 }  // namespace painlessmesh

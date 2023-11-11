@@ -7,10 +7,12 @@
 #include <unordered_map>
 
 #include "Arduino.h"
-#include "painlessmesh/nodeTree.hpp"
-#include "painlessmesh/configuration.hpp"
+// #include "espserializer.hpp"
 #include "serializer.hpp"
+#include "painlessmesh/configuration.hpp"
+#include "painlessmesh/nodeTree.hpp"
 // #include "variant.hpp"
+using namespace std;
 
 namespace painlessmesh {
 
@@ -53,7 +55,8 @@ struct ProtocolHeader {
   uint16_t routing = 0xffff;
   uint32_t dest = 0xffffffff;
 
-  // ProtocolHeader(std::initializer_list<ProtocolHeader> initializerList) = default;
+  // ProtocolHeader(std::initializer_list<ProtocolHeader> initializerList) =
+  // default;
 
   ProtocolHeader() {}
   // ProtocolHeader(uint16_t type) : type(type) {}
@@ -71,11 +74,11 @@ struct ProtocolHeader {
     return !(header == header1);
   }
 
-  void deserializeFrom(const std::string& str, int& offset) {
+  void deserializeFrom(const TSTRING& str, int& offset) {
     SerializeHelper::deserialize(this, str, offset);
   }
 
-  void serializeTo(std::string& str, int& offset) {
+  void serializeTo(TSTRING& str, int& offset) {
     SerializeHelper::serialize(this, str, offset);
   }
 
@@ -110,19 +113,19 @@ class PackageInterface {
 class Single : public PackageInterface {
  public:
   uint32_t from;
-  std::string msg = "";
+  TSTRING msg;
 
-  Single(ProtocolHeader header) : PackageInterface(header) {}
+  Single(ProtocolHeader header) : PackageInterface(header), msg("") {}
 
-  Single(uint32_t fromID, uint32_t destID, std::string& message)
-      : PackageInterface(SINGLE, router::SINGLE) {
+  Single(uint32_t fromID, uint32_t destID, TSTRING& message)
+      : PackageInterface(SINGLE, router::SINGLE), msg(message) {
     from = fromID;
     header.dest = destID;
-    msg = message;
   }
 
   uint32_t size() override {
-    return PackageInterface::size() + sizeof(from) + sizeof(uint16_t) + msg.size();
+    return PackageInterface::size() + sizeof(from) + sizeof(uint16_t) +
+           msg.size();
   }
 
   friend bool operator==(const Single& single, const Single& single1) {
@@ -143,20 +146,22 @@ class Single : public PackageInterface {
  */
 class Broadcast : public Single {
  public:
-
   Broadcast(ProtocolHeader header) : Single(header) {}
 
-  Broadcast(uint32_t fromID, std::string& message) : Single(fromID, 0, message) {
+  Broadcast(uint32_t fromID, TSTRING& message) : Single(fromID, 0, message) {
     header.type = BROADCAST;
     header.routing = router::BROADCAST;
   }
 
-    friend bool operator==(const Broadcast& broadcast, const Broadcast& broadcast1) {
-    return broadcast.from == broadcast1.from && broadcast.header == broadcast1.header &&
+  friend bool operator==(const Broadcast& broadcast,
+                         const Broadcast& broadcast1) {
+    return broadcast.from == broadcast1.from &&
+           broadcast.header == broadcast1.header &&
            broadcast.msg == broadcast1.msg;
   }
 
-  friend bool operator!=(const Broadcast& broadcast, const Broadcast& broadcast1) {
+  friend bool operator!=(const Broadcast& broadcast,
+                         const Broadcast& broadcast1) {
     return !(broadcast == broadcast1);
   }
 };

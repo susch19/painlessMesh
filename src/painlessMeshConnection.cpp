@@ -9,7 +9,7 @@
 #include "painlessMeshConnection.h"
 #include "painlessMesh.h"
 
-#include "painlessmesh/base64.hpp"
+#include "espbase64.hpp"
 #include "painlessmesh/configuration.hpp"
 #include "painlessmesh/logger.hpp"
 using namespace painlessmesh;
@@ -72,14 +72,15 @@ void MeshConnection::initTCPCallbacks() {
                                         void *data, size_t len) {
         using namespace logger;
         if (self->mesh->semaphoreTake()) {
-          Log(COMMUNICATION, "Received Length: %zu, Remaining: %zu\n", len,self->lengthRemaining);
+          Log(COMMUNICATION, "Received Length: %zu, Remaining: %zu\n", len,
+              self->lengthRemaining);
 
 #ifdef DebugWithDebugger
           if (len > 200) {
             // gdb_do_break();
           }
 #endif
-        
+
           auto bufferSize = len + self->readBuffer.size();
           int lenLeft = bufferSize;
           if (self->readBuffer.size() < self->lengthRemaining)
@@ -102,7 +103,11 @@ void MeshConnection::initTCPCallbacks() {
                 break;  // We need more data
               }
             } else {
-              if (lenLeft < sizeof(self->lengthRemaining)) { //sizeof because we want to deserialize the lengthRemaining and therefore need 4 bytes
+              if (lenLeft <
+                  sizeof(self->lengthRemaining)) {  // sizeof because we want to
+                                                    // deserialize the
+                                                    // lengthRemaining and
+                                                    // therefore need 4 bytes
                 break;
               }
               SerializeHelper::deserialize(&self->lengthRemaining,
@@ -145,8 +150,7 @@ void MeshConnection::initTCPCallbacks() {
       NULL);
 }
 
-void MeshConnection::pushStdStr(std::string str) {
-  str.shrink_to_fit();
+void MeshConnection::pushStdStr(TSTRING str) {
   receiveBuffer.push(str);
   readBufferTask.forceNextIteration();
 }
@@ -178,12 +182,9 @@ void MeshConnection::initTasks() {
   readBufferTask.set(
       TASK_SECOND, TASK_FOREVER, [self = this->shared_from_this()]() {
         Log(GENERAL, "readBufferTask()\n");
-        if (!self->receiveBuffer.empty()) {
+        while (!self->receiveBuffer.empty()) {
           Log(GENERAL, "readBufferTask not empty()\n");
-          TSTRING frnt = self->receiveBuffer.front();
-          self->receiveBuffer.pop_front();
-          if (!self->receiveBuffer.empty())
-            self->readBufferTask.forceNextIteration();
+          TSTRING frnt = self->receiveBuffer.pop_front();
 
           Log(GENERAL, "popped front of recieve: %zu\n", frnt.size());
           router::routePackage<MeshConnection>(
@@ -255,7 +256,12 @@ void ICACHE_FLASH_ATTR MeshConnection::close() {
       this->station);
 }
 
-bool ICACHE_FLASH_ATTR MeshConnection::addMessage(std::string &message,
+bool ICACHE_FLASH_ATTR MeshConnection::addMessageCopy(TSTRING message,
+                                                      bool priority) {
+  return addMessage(std::move(message), priority);
+}
+
+bool ICACHE_FLASH_ATTR MeshConnection::addMessage(TSTRING &&message,
                                                   bool priority) {
 #ifdef DEBUG
   // auto b64 = base64::encode(message);
@@ -263,7 +269,6 @@ bool ICACHE_FLASH_ATTR MeshConnection::addMessage(std::string &message,
   //               b64.c_str());
 #endif
   int len = message.size() - sizeof(int);
-  std::string s;
   int offset = 0;
   SerializeHelper::serialize(&len, message, offset);
   if (ESP.getFreeHeap() - len >=
@@ -273,14 +278,14 @@ bool ICACHE_FLASH_ATTR MeshConnection::addMessage(std::string &message,
           "addMessage(): Package sent to queue beginning -> %d , "
           "FreeMem: %d\n",
           sentBuffer.size(), ESP.getFreeHeap());
-      sentBuffer.push(message, priority);
+      sentBuffer.push(std::move(message), priority);
     } else {
       if (sentBuffer.size() < MAX_MESSAGE_QUEUE) {
         Log(COMMUNICATION,
             "addMessage(): Package sent to queue end -> %d , FreeMem: "
             "%d\n",
             sentBuffer.size(), ESP.getFreeHeap());
-        sentBuffer.push(message, priority);
+        sentBuffer.push(std::move(message), priority);
       } else {
         Log(ERROR, "addMessage(): Message queue full -> %d , FreeMem: %d\n",
             sentBuffer.size(), ESP.getFreeHeap());
@@ -304,35 +309,41 @@ bool ICACHE_FLASH_ATTR MeshConnection::writeNext() {
     Log(COMMUNICATION, "writeNext(): sendQueue is empty\n");
     return false;
   }
-  auto len = sentBuffer.requestLength(shared_buffer.length);
-  auto snd_len = client->space();
-  Log(COMMUNICATION, "Having space %zu and snd_len %zu\n", len, snd_len);
-  if (len > snd_len) len = snd_len;
-  if (len > 0) {
-    // sentBuffer.read(len, shared_buffer);
-    // auto written = client->write(shared_buffer.buffer, len, 1);
-    auto data_ptr = sentBuffer.readPtr(len);
+  while (!sentBuffer.empty()) {
+    auto reqLen = sentBuffer.requestLength(shared_buffer.length);
+    auto len = reqLen;
+    auto snd_len = client->space();
+    Log(COMMUNICATION, "Having space %zu and snd_len %zu\n", len, snd_len);
+    if (len > snd_len) len = snd_len;
+    if (len > 0) {
+      // sentBuffer.read(len, shared_buffer);
+      // auto written = client->write(shared_buffer.buffer, len, 1);
 
-    auto written = client->write(data_ptr, len, 1);
-    if (written == len) {
-      Log(COMMUNICATION, "writeNext(): Package sent, Written: %zu\n", written);
-      // Log(COMMUNICATION, "writeNext(): Package sent %s\n", data_ptr);
-      // client->send();  // TODO only do this for priority messages
-      sentBuffer.freeRead();
-      sentBufferTask.forceNextIteration();
-      return true;
-    } else if (written == 0) {
-      Log(COMMUNICATION,
-          "writeNext(): tcp_write Failed node=%u. Resending later\n", nodeId);
-      return false;
-    } else {
-      Log(ERROR,
-          "writeNext(): Less written than requested. Please report bug on "
-          "the issue tracker\n");
+      auto data_ptr = sentBuffer.readPtr(len);
+
+      auto written = client->write(data_ptr, len, 1);
+      if (written == len) {
+        Log(COMMUNICATION,
+            "writeNext(): Package sent, Written: %zu, directly sending next "
+            "package\n",
+            written);
+        // Log(COMMUNICATION, "writeNext(): Package sent %s\n", data_ptr);
+        // client->send();  // TODO only do this for priority messages
+        sentBuffer.freeRead();
+      } else if (written == 0) {
+        Log(COMMUNICATION,
+            "writeNext(): tcp_write Failed node=%u. Resending later\n", nodeId);
+        return false;
+      } else {
+        Log(ERROR,
+            "writeNext(): Less written than requested. Please report bug on "
+            "the issue tracker\n");
+        return false;
+      }
+    } else if (reqLen != 0) {
+      Log(COMMUNICATION, "writeNext(): tcp_sndbuf not enough space\n");
       return false;
     }
-  } else {
-    Log(COMMUNICATION, "writeNext(): tcp_sndbuf not enough space\n");
-    return false;
   }
+  return false;
 }

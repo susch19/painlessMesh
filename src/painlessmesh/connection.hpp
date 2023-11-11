@@ -64,11 +64,10 @@ class BufferedConnection
 
     readBufferTask.set(TASK_SECOND, TASK_FOREVER,
                        [self = this->shared_from_this()]() {
-                         if (!self->receiveBuffer.empty()) {
-                           TSTRING frnt = self->receiveBuffer.front();
-                           self->receiveBuffer.pop_front();
-                           if (!self->receiveBuffer.empty())
-                             self->readBufferTask.forceNextIteration();
+                         while (!self->receiveBuffer.empty()) {
+                           TSTRING frnt = self->receiveBuffer.pop_front();
+                          //  if (!self->receiveBuffer.empty())
+                          //    self->readBufferTask.forceNextIteration();
                            if (self->receiveCallback)
                              self->receiveCallback(frnt);
                          }
@@ -86,7 +85,7 @@ class BufferedConnection
     client->onData(
         [self = this->shared_from_this()](void *arg, AsyncClient *client,
                                           void *data, size_t len) {
-          self->receiveBuffer.push(std::string(static_cast<const char *>(data), len),
+          self->receiveBuffer.push(TSTRING(static_cast<const char *>(data), len),
                                    shared_buffer);
           // Signal that we are done
           self->client->ack(len);
@@ -135,7 +134,7 @@ class BufferedConnection
     disconnectCallback = callback;
   }
 
-  void onReceive(std::function<void(TSTRING)> callback) {
+  void onReceive(std::function<void(TSTRING&)> callback) {
     receiveCallback = callback;
   }
 
@@ -144,38 +143,44 @@ class BufferedConnection
 
   AsyncClient *client;
 
-  std::function<void(TSTRING)> receiveCallback;
+  std::function<void(TSTRING&)> receiveCallback;
   std::function<void()> disconnectCallback;
 
   painlessmesh::buffer::ReceiveBuffer<TSTRING> receiveBuffer;
   painlessmesh::buffer::SentBuffer<TSTRING> sentBuffer;
 
   bool writeNext() {
-    if (sentBuffer.empty()) {
-      return false;
-    }
-    auto len = sentBuffer.requestLength(shared_buffer.length);
+  if (sentBuffer.empty()) {
+    return false;
+  }
+  while (!sentBuffer.empty()) {
+    auto reqLen = sentBuffer.requestLength(shared_buffer.length);
+    auto len = reqLen;
     auto snd_len = client->space();
     if (len > snd_len) len = snd_len;
     if (len > 0) {
       // sentBuffer.read(len, shared_buffer);
       // auto written = client->write(shared_buffer.buffer, len, 1);
+
       auto data_ptr = sentBuffer.readPtr(len);
+
       auto written = client->write(data_ptr, len, 1);
       if (written == len) {
-        client->send();  // TODO only do this for priority messages
+        
+        // Log(COMMUNICATION, "writeNext(): Package sent %s\n", data_ptr);
+        // client->send();  // TODO only do this for priority messages
         sentBuffer.freeRead();
-        sentBufferTask.forceNextIteration();
-        return true;
       } else if (written == 0) {
         return false;
       } else {
         return false;
       }
-    } else {
+    } else if (reqLen != 0) {
       return false;
     }
   }
+  return false;
+}
 
   Task sentBufferTask;
   Task readBufferTask;

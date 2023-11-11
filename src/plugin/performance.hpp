@@ -40,7 +40,7 @@ class Stats {
     return TSTRING(mu) + TSTRING("[") + TSTRING(mu - 1.96 * sqrt(var)) +
            TSTRING(",") + TSTRING(mu + 1.96 * sqrt(var)) + TSTRING("]");
 #else
-    std::stringstream ss;
+    TSTRINGstream ss;
     ss << mu << "[" << mu - 1.96 * sqrt(var) << "," << mu + 1.96 * sqrt(var)
        << "]";
     return ss.str();

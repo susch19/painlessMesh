@@ -17,7 +17,7 @@
 namespace painlessmesh {
 typedef std::function<void(uint32_t nodeId)> newConnectionCallback_t;
 typedef std::function<void(uint32_t nodeId)> droppedConnectionCallback_t;
-typedef std::function<void(uint32_t from, std::string &msg)> receivedCallback_t;
+typedef std::function<void(uint32_t from, TSTRING &msg)> receivedCallback_t;
 typedef std::function<void()> changedConnectionsCallback_t;
 typedef std::function<void(int32_t offset)> nodeTimeAdjustedCallback_t;
 typedef std::function<void(uint32_t nodeId, int32_t delay)> nodeDelayCallback_t;
@@ -191,7 +191,7 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    *
    * @return true if everything works, false if not.
    */
-  bool sendSingle(uint32_t destId, TSTRING msg) {
+  bool sendSingle(uint32_t destId, TSTRING& msg) {
     Log(logger::COMMUNICATION, "sendSingle(): dest=%u \n", destId);
     auto single = painlessmesh::protocol::Single(this->nodeId, destId, msg);
     return painlessmesh::router::send(
@@ -204,9 +204,9 @@ class Mesh : public ntp::MeshTime, public plugin::PackageHandler<T> {
    *
    * @return true if everything works, false if not
    */
-  bool sendBroadcast(TSTRING msg, bool includeSelf = false) {
+  bool sendBroadcast(TSTRING& msg, bool includeSelf = false) {
     using namespace logger;
-    Log(COMMUNICATION, "sendBroadcast(): msg length=%zu\n", msg.size());
+    Log(COMMUNICATION, "sendBroadcast(): msg length=%zu, FreeRam: %zu\n", msg.size(), ESP.getFreeHeap());
     auto pkg = painlessmesh::protocol::Broadcast(this->nodeId, msg);
     auto success = router::broadcast<protocol::Broadcast, T>(pkg, (*this), 0);
     if (success && includeSelf) {
